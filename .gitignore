@@ -1,0 +1,27 @@
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+
+# Environment Variables
+.env
+.env.local
+backend/.env
+
+# Node
+frontend/node_modules/
+
+# Build
+frontend/dist/
+
+# ChromaDB
+backend/chroma_db/
+
+# Uploaded Files
+backend/uploads/
+
+# Verification Files
+backend/verify_rag_results.json
+
+# OS
+.DS_Store
