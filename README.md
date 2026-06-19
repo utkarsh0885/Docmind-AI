@@ -9,10 +9,10 @@ DocMind AI is a production-grade Retrieval-Augmented Generation (RAG) applicatio
 ## 🚀 Live Demo
 
 ### Frontend
-[Your Vercel URL]
+https://docmind-ai-phi.vercel.app/
 
 ### Backend API Docs
-[Your Render URL]/docs
+https://docmind-ai-backend-3ias.onrender.com/
 
 ---
 
