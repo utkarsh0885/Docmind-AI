@@ -60,6 +60,19 @@ class ChromaDBClient:
             logger.error(f"Similarity search failed: {e}")
             return []
 
+    def similarity_search_with_scores(self, query: str, k: int = 4) -> List[Any]:
+        """
+        Perform a similarity search in ChromaDB and return documents along with their distance scores.
+        """
+        store = self.get_store()
+        try:
+            logger.info(f"Searching vector database with scores for query: '{query}' (k={k})")
+            results = store.similarity_search_with_score(query, k=k)
+            return results
+        except Exception as e:
+            logger.error(f"Similarity search with scores failed: {e}")
+            return []
+
     def delete_by_filename(self, filename: str) -> bool:
         """
         Delete all document chunks corresponding to a specific filename.

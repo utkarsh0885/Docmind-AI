@@ -18,14 +18,16 @@ async def query_knowledge_base(
     logger.info(f"Received query: '{request.message}' with history length {len(request.history)}")
     
     try:
-        response_text, citations = await llm.generate_response(
+        response_text, sources, citations = await llm.generate_response(
             query=request.message,
             history=request.history
         )
         
         return ChatResponse(
+            answer=response_text,
             response=response_text,
-            sources=citations
+            sources=sources,
+            citations=citations
         )
     except Exception as e:
         logger.error(f"Error executing knowledge query: {e}")

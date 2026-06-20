@@ -6,7 +6,7 @@ from langchain_core.language_models import BaseChatModel
 
 from app.config import settings
 from app.vectordb.chroma_client import get_db_client
-from app.models.schemas import ChatMessage, SourceCitation
+from app.models.schemas import ChatMessage, SourceCitation, SourceScore
 
 logger = logging.getLogger(__name__)
 
@@ -103,15 +103,16 @@ class LLMService:
         messages.append(HumanMessage(content=query))
         return messages
 
-    async def generate_response(self, query: str, history: List[ChatMessage]) -> Tuple[str, List[SourceCitation]]:
+    async def generate_response(self, query: str, history: List[ChatMessage]) -> Tuple[str, List[SourceScore], List[SourceCitation]]:
         """
-        Retrieves context documents, builds messages, calls the LLM, and formats citations.
+        Retrieves context documents with distance scores, builds messages, calls the LLM,
+        and formats sources with normalized relevance scores and citations.
         """
-        # 1. Retrieve relevant contexts
-        retrieved_docs = self.db_client.similarity_search(query, k=4)
+        # 1. Retrieve relevant contexts with distance scores
+        retrieved_docs_with_scores = self.db_client.similarity_search_with_scores(query, k=4)
         
-        if not retrieved_docs:
-            return "I could not find any reference documents in the vector database. Please upload documents first.", []
+        if not retrieved_docs_with_scores:
+            return "I could not find any reference documents in the vector database. Please upload documents first.", [], []
             
         # 2. Check if LLM is initialized
         if self.llm is None:
@@ -121,10 +122,12 @@ class LLMService:
                 return (
                     f"LLM Provider '{settings.LLM_PROVIDER}' is not configured. "
                     "Please configure your API key (GOOGLE_API_KEY or OPENAI_API_KEY) in the .env file.",
+                    [],
                     []
                 )
 
         # 3. Construct prompt messages
+        retrieved_docs = [doc for doc, _ in retrieved_docs_with_scores]
         messages = self._build_messages(query, retrieved_docs, history)
         
         try:
@@ -132,10 +135,32 @@ class LLMService:
             llm_result = await self.llm.ainvoke(messages)
             response_text = str(llm_result.content)
             
-            # 4. Process and format citations
+            # 4. Calculate relevance scores and format unique sources sorted by score descending
+            # ChromaDB default space is 'l2' (squared L2 distance).
+            # For unit-normalized embeddings, squared L2 distance d is related to cosine similarity by:
+            # d = ||u - v||^2 = ||u||^2 + ||v||^2 - 2 * (u . v) = 1 + 1 - 2 * cosine_similarity = 2 * (1 - cosine_similarity).
+            # Therefore, cosine_similarity = 1.0 - (d / 2.0).
+            # To normalize this cosine similarity metric into a [0, 1] range:
+            # relevance_score = max(0.0, min(1.0, 1.0 - (d / 2.0))).
+            file_scores = {}
+            for doc, distance in retrieved_docs_with_scores:
+                file_path = doc.metadata.get("filename", "Unknown Source")
+                score = max(0.0, min(1.0, 1.0 - (distance / 2.0)))
+                
+                if file_path not in file_scores or score > file_scores[file_path]:
+                    file_scores[file_path] = score
+            
+            sources = [
+                SourceScore(file_path=fp, score=round(sc, 4))
+                for fp, sc in file_scores.items()
+            ]
+            # Sort sources descending by score
+            sources.sort(key=lambda x: x.score, reverse=True)
+            
+            # 5. Process and format citations
             citations = []
             seen_snippets = set()
-            for doc in retrieved_docs:
+            for doc, _ in retrieved_docs_with_scores:
                 snippet = doc.page_content.strip()
                 if snippet in seen_snippets:
                     continue
@@ -149,11 +174,11 @@ class LLMService:
                     )
                 )
                 
-            return response_text, citations
+            return response_text, sources, citations
             
         except Exception as e:
             logger.error(f"Error during LLM inference: {e}")
-            return f"An error occurred while generating a response: {str(e)}", []
+            return f"An error occurred while generating a response: {str(e)}", [], []
 
 llm_service = LLMService()
 

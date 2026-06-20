@@ -39,8 +39,8 @@ export const useChat = () => {
       const assistantMessage: ChatUILevelMessage = {
         id: assistantMessageId,
         role: 'assistant',
-        content: response.response,
-        sources: response.sources,
+        content: response.answer || response.response,
+        sources: response.citations || [],
         timestamp: new Date(),
       };
       
@@ -49,7 +49,7 @@ export const useChat = () => {
         const storedSources = localStorage.getItem('docmind_sources_count');
         const currentQueries = storedQueries ? parseInt(storedQueries, 10) : 32;
         const currentSources = storedSources ? parseInt(storedSources, 10) : 96;
-        const sourcesCount = response.sources ? response.sources.length : 0;
+        const sourcesCount = response.citations ? response.citations.length : (response.sources ? response.sources.length : 0);
         
         localStorage.setItem('docmind_queries_count', (currentQueries + 1).toString());
         localStorage.setItem('docmind_sources_count', (currentSources + sourcesCount).toString());

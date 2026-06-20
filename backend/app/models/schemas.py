@@ -14,9 +14,15 @@ class SourceCitation(BaseModel):
     page: Optional[int] = Field(None, description="Page number of the citation, if applicable")
     snippet: str = Field(..., description="Snippet of text that was retrieved")
 
+class SourceScore(BaseModel):
+    file_path: str = Field(..., description="Source file name or path")
+    score: float = Field(..., description="Normalized relevance score between 0 and 1")
+
 class ChatResponse(BaseModel):
-    response: str = Field(..., description="The assistant's generated response")
-    sources: List[SourceCitation] = Field(default=[], description="List of sources used to generate the response")
+    answer: str = Field(..., description="The assistant's generated response")
+    response: str = Field(..., description="The assistant's generated response (for backward compatibility)")
+    sources: List[SourceScore] = Field(default=[], description="List of sources and their relevance scores")
+    citations: List[SourceCitation] = Field(default=[], description="List of citations used to generate the response")
 
 class DocumentMetadata(BaseModel):
     id: str = Field(..., description="Unique ID of the document chunk or metadata record")
