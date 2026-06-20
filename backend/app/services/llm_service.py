@@ -190,17 +190,31 @@ class LLMService:
             seen_snippets = set()
             for doc, _, _ in relevant_docs_with_scores:
                 snippet = doc.page_content.strip()
+                # Skip empty or whitespace-only snippets
+                if not snippet:
+                    continue
                 if snippet in seen_snippets:
                     continue
                 seen_snippets.add(snippet)
                 
+                # Coerce page metadata to integer safely
+                page_raw = doc.metadata.get("page", 1)
+                try:
+                    page = int(page_raw)
+                except (ValueError, TypeError):
+                    page = 1
+                
                 citations.append(
                     SourceCitation(
                         source=doc.metadata.get("filename", "Unknown Source"),
-                        page=doc.metadata.get("page", 1),
+                        page=page,
                         snippet=snippet[:250] + "..." if len(snippet) > 250 else snippet
                     )
                 )
+            
+            # Log structured citation details
+            logger.info(f"Citations generated count: {len(citations)}")
+            logger.info(f"Citation sources used: {list(set(c.source for c in citations))}")
                 
             return response_text, sources, citations
             

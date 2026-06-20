@@ -11,7 +11,7 @@ class ChatRequest(BaseModel):
 
 class SourceCitation(BaseModel):
     source: str = Field(..., description="Source file name or path")
-    page: Optional[int] = Field(None, description="Page number of the citation, if applicable")
+    page: int = Field(default=1, description="Page number of the citation (defaults to 1 if not present)")
     snippet: str = Field(..., description="Snippet of text that was retrieved")
 
 class SourceScore(BaseModel):

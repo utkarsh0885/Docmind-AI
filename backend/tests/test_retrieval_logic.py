@@ -248,8 +248,7 @@ class TestCitationGeneration:
         assert len(citations) == 3
 
     def test_duplicate_snippets_are_deduplicated(self):
-        """If two chunks have identical page_content, only one citation
-        should be generated."""
+        """If two chunks have identical page_content, only one citation should be generated."""
         docs = [
             (Document(page_content="Same text.", metadata={"filename": "f.pdf", "page": 1}), 0.2),
             (Document(page_content="Same text.", metadata={"filename": "f.pdf", "page": 2}), 0.4),
@@ -290,13 +289,47 @@ class TestCitationGeneration:
         finally:
             settings.RELEVANCE_THRESHOLD = original_threshold
 
+    def test_citation_originates_from_retrieved_docs_and_matches_filenames(self):
+        """Verify that every citation matches the content and filename of retrieved docs."""
+        docs = [
+            (Document(page_content="Unique chunk content alpha.", metadata={"filename": "alpha.pdf", "page": 1}), 0.2),
+            (Document(page_content="Unique chunk content beta.", metadata={"filename": "beta.txt", "page": 2}), 0.4),
+        ]
+        svc = _make_service(docs)
+
+        _, _, citations = _run(svc.generate_response("query", []))
+
+        assert len(citations) == 2
+        for citation in citations:
+            # Check source exists in retrieved documents
+            assert citation.source in ["alpha.pdf", "beta.txt"]
+            # Check snippet content originates from retrieved page_content
+            matching_doc = next((d[0] for d in docs if d[0].metadata["filename"] == citation.source), None)
+            assert matching_doc is not None
+            assert citation.snippet in matching_doc.page_content
+
+    def test_citation_snippets_are_never_empty(self):
+        """Verify that chunks with empty/whitespace page_content are ignored and generate no citations."""
+        docs = [
+            (Document(page_content="   ", metadata={"filename": "empty.pdf", "page": 1}), 0.2),
+            (Document(page_content="", metadata={"filename": "empty.pdf", "page": 2}), 0.3),
+            (Document(page_content="Valid snippet", metadata={"filename": "valid.pdf", "page": 1}), 0.4),
+        ]
+        svc = _make_service(docs)
+
+        _, _, citations = _run(svc.generate_response("query", []))
+
+        assert len(citations) == 1
+        assert citations[0].source == "valid.pdf"
+        assert citations[0].snippet == "Valid snippet"
+
 
 # ---------------------------------------------------------------------------
 # 6. Citation schema validation
 # ---------------------------------------------------------------------------
 class TestCitationSchema:
-    def test_citation_has_required_fields(self):
-        """Each citation must contain source, page, and snippet fields."""
+    def test_citation_has_required_fields_and_types(self):
+        """Each citation must contain source (str), page (int), and snippet (str) fields."""
         docs = [
             (Document(page_content="Test content.", metadata={"filename": "test.pdf", "page": 3}), 0.2),
         ]
@@ -307,8 +340,11 @@ class TestCitationSchema:
         assert len(citations) == 1
         c = citations[0]
         assert isinstance(c, SourceCitation)
+        assert isinstance(c.source, str)
         assert c.source == "test.pdf"
+        assert isinstance(c.page, int)
         assert c.page == 3
+        assert isinstance(c.snippet, str)
         assert c.snippet == "Test content."
 
     def test_source_score_has_required_fields(self):
@@ -337,3 +373,20 @@ class TestCitationSchema:
         _, _, citations = _run(svc.generate_response("query", []))
 
         assert citations[0].page == 1
+
+    def test_citation_page_invalid_type_coercion(self):
+        """When the metadata 'page' key is an invalid format (string or float), it must default to an integer 1."""
+        docs = [
+            (Document(page_content="String page.", metadata={"filename": "test.pdf", "page": "two"}), 0.2),
+            (Document(page_content="Float page.", metadata={"filename": "test.pdf", "page": 5.7}), 0.3),
+        ]
+        svc = _make_service(docs)
+
+        _, _, citations = _run(svc.generate_response("query", []))
+
+        assert len(citations) == 2
+        # Both must be coerced to integer 1 and 5 respectively
+        assert isinstance(citations[0].page, int)
+        assert citations[0].page == 1
+        assert isinstance(citations[1].page, int)
+        assert citations[1].page == 5
