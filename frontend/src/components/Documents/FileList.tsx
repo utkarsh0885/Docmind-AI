@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, FileText, FolderOpen, X, Check } from 'lucide-react';
+import { Trash2, FileText, FolderOpen, X, Check, Loader2 } from 'lucide-react';
 import type { DocumentMetadata } from '../../services/documentService';
+import type { UploadStatus } from '../../hooks/useDocuments';
 
 interface FileListProps {
   documents: DocumentMetadata[];
   isLoading: boolean;
   onDelete: (filename: string) => void;
+  activeFileName?: string | null;
+  activeStatus?: UploadStatus;
+  activeError?: string | null;
 }
 
 // Skeleton loading cards
@@ -21,7 +25,14 @@ const SkeletonCard: React.FC = () => (
   </div>
 );
 
-export const FileList: React.FC<FileListProps> = ({ documents, isLoading, onDelete }) => {
+export const FileList: React.FC<FileListProps> = ({
+  documents,
+  isLoading,
+  onDelete,
+  activeFileName,
+  activeStatus,
+  activeError,
+}) => {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const formatBytes = (bytes: number, decimals = 1) => {
@@ -63,6 +74,41 @@ export const FileList: React.FC<FileListProps> = ({ documents, isLoading, onDele
     }
   };
 
+  const getStatusBadge = (status: UploadStatus) => {
+    switch (status) {
+      case 'ready':
+        return {
+          text: 'Ready',
+          classes: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider',
+        };
+      case 'embedding':
+        return {
+          text: 'Embedding',
+          classes: 'bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider',
+        };
+      case 'processing':
+        return {
+          text: 'Processing',
+          classes: 'bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider',
+        };
+      case 'uploading':
+        return {
+          text: 'Uploading',
+          classes: 'bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider',
+        };
+      case 'failed':
+        return {
+          text: 'Failed',
+          classes: 'bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider',
+        };
+      default:
+        return {
+          text: 'Ready',
+          classes: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider',
+        };
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -74,8 +120,25 @@ export const FileList: React.FC<FileListProps> = ({ documents, isLoading, onDele
     );
   }
 
+  // Determine if we should show a virtual loading document
+  const showVirtual = activeFileName && activeStatus && activeStatus !== 'idle' && activeStatus !== 'ready' && !documents.some(d => d.filename === activeFileName);
+
+  const virtualDoc = showVirtual
+    ? {
+        id: 'virtual-upload-id',
+        filename: activeFileName!,
+        size_bytes: 0,
+        upload_time: new Date().toISOString(),
+        chunk_count: 0,
+        isVirtual: true,
+        status: activeStatus!,
+      }
+    : null;
+
+  const displayDocs = virtualDoc ? [virtualDoc, ...documents] : documents;
+
   // Empty state
-  if (documents.length === 0) {
+  if (displayDocs.length === 0) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -109,9 +172,12 @@ export const FileList: React.FC<FileListProps> = ({ documents, isLoading, onDele
   return (
     <div className="space-y-2">
       <AnimatePresence>
-        {documents.map((doc, idx) => {
+        {displayDocs.map((doc, idx) => {
           const iconClasses = getFileIcon(doc.filename);
           const isConfirming = confirmDelete === doc.filename;
+          const isVirtual = 'isVirtual' in doc;
+          const status = isVirtual ? (doc as any).status as UploadStatus : 'ready';
+          const badge = getStatusBadge(status);
 
           return (
             <motion.div
@@ -121,11 +187,19 @@ export const FileList: React.FC<FileListProps> = ({ documents, isLoading, onDele
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2, delay: idx * 0.04 }}
-              className="group flex items-center gap-4 px-4 py-3.5 rounded-xl bg-surface-900/40 border border-surface-800/60 hover:border-surface-700 hover:bg-surface-900/60 transition-all duration-150"
+              className={`group flex items-center gap-4 px-4 py-3.5 rounded-xl bg-surface-900/40 border transition-all duration-150
+                ${isVirtual 
+                  ? 'border-dashed border-surface-700 bg-surface-900/20' 
+                  : 'border-surface-800/60 hover:border-surface-700 hover:bg-surface-900/60'
+                }`}
             >
               {/* File icon */}
               <div className={`h-10 w-10 rounded-lg border flex items-center justify-center shrink-0 ${iconClasses}`}>
-                <FileText className="h-4.5 w-4.5" />
+                {isVirtual && status !== 'failed' ? (
+                  <Loader2 className="h-4.5 w-4.5 animate-spin text-accent-400" />
+                ) : (
+                  <FileText className="h-4.5 w-4.5" />
+                )}
               </div>
 
               {/* File info */}
@@ -134,56 +208,76 @@ export const FileList: React.FC<FileListProps> = ({ documents, isLoading, onDele
                   {doc.filename}
                 </p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-2xs text-surface-500">{formatBytes(doc.size_bytes)}</span>
-                  <span className="text-2xs text-surface-700">&middot;</span>
-                  <span className="text-2xs text-surface-500">{formatDate(doc.upload_time)}</span>
+                  {isVirtual ? (
+                    <span className="text-2xs text-surface-500">
+                      {status === 'failed' ? activeError || 'Upload failed' : 'Indexing in progress...'}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="text-2xs text-surface-500">{formatBytes(doc.size_bytes)}</span>
+                      <span className="text-2xs text-surface-700">&middot;</span>
+                      <span className="text-2xs text-surface-500">{formatDate(doc.upload_time)}</span>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Chunk badge */}
-              <span className="badge-accent shrink-0">
-                {doc.chunk_count} chunks
-              </span>
+              {/* Badges Container */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={badge.classes}>
+                  {badge.text}
+                </span>
 
-              {/* Delete button */}
-              <AnimatePresence mode="wait">
-                {isConfirming ? (
-                  <motion.div
-                    key="confirm"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className="flex items-center gap-1"
-                  >
-                    <button
-                      onClick={() => handleDelete(doc.filename)}
-                      className="p-1.5 rounded-md bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer"
-                      title="Confirm delete"
-                    >
-                      <Check className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(null)}
-                      className="p-1.5 rounded-md bg-surface-800 text-surface-400 hover:bg-surface-700 transition-colors cursor-pointer"
-                      title="Cancel"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </motion.div>
-                ) : (
-                  <motion.button
-                    key="delete"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    onClick={() => handleDelete(doc.filename)}
-                    className="p-2 rounded-lg text-surface-500 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
-                    title="Delete document"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </motion.button>
+                {!isVirtual && (
+                  <span className="badge-accent shrink-0">
+                    {doc.chunk_count} chunks
+                  </span>
                 )}
-              </AnimatePresence>
+              </div>
+
+              {/* Delete button (or empty space placeholder for virtual item) */}
+              <div className="w-8 flex items-center justify-end shrink-0">
+                {!isVirtual ? (
+                  <AnimatePresence mode="wait">
+                    {isConfirming ? (
+                      <motion.div
+                        key="confirm"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="flex items-center gap-1"
+                      >
+                        <button
+                          onClick={() => handleDelete(doc.filename)}
+                          className="p-1.5 rounded-md bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors cursor-pointer"
+                          title="Confirm delete"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="p-1.5 rounded-md bg-surface-800 text-surface-400 hover:bg-surface-700 transition-colors cursor-pointer"
+                          title="Cancel"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </motion.div>
+                    ) : (
+                      <motion.button
+                        key="delete"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        onClick={() => handleDelete(doc.filename)}
+                        className="p-2 rounded-lg text-surface-500 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-red-500/10 transition-all cursor-pointer"
+                        title="Delete document"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                ) : null}
+              </div>
             </motion.div>
           );
         })}
@@ -191,3 +285,4 @@ export const FileList: React.FC<FileListProps> = ({ documents, isLoading, onDele
     </div>
   );
 };
+

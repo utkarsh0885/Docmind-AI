@@ -24,6 +24,11 @@ export const ChatWindow: React.FC = () => {
     fetchDocuments,
     uploadFile,
     deleteDocument,
+    uploadStatus,
+    activeFileName,
+    chunksCreated,
+    uploadError,
+    resetUploadState,
   } = useDocuments();
 
   useEffect(() => {
@@ -104,6 +109,11 @@ export const ChatWindow: React.FC = () => {
             deleteDocument={deleteDocument}
             onSubmitQuestion={sendMessage}
             isLoadingQuestion={isLoading}
+            uploadStatus={uploadStatus}
+            activeFileName={activeFileName}
+            chunksCreated={chunksCreated}
+            uploadError={uploadError}
+            resetUploadState={resetUploadState}
           />
         ) : (
           <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">

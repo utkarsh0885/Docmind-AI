@@ -1,39 +1,37 @@
 import React, { useCallback, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, Loader2, CheckCircle2, AlertCircle, FileUp } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { UploadCloud, Loader2, FileUp } from 'lucide-react';
+import type { UploadStatus } from '../../hooks/useDocuments';
 
 interface UploadZoneProps {
   onUpload: (file: File) => Promise<boolean>;
   isUploading: boolean;
   progress: number;
+  status: UploadStatus;
 }
 
-export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, isUploading, progress }) => {
+export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, progress, status }) => {
   const [isDragActive, setIsDragActive] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' | null }>({
-    text: '',
-    type: null,
-  });
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    // Disable drag behavior during active ingestion
+    const isActiveUpload = status === 'uploading' || status === 'processing' || status === 'embedding';
+    if (isActiveUpload) return;
+
     if (e.type === 'dragenter' || e.type === 'dragover') {
       setIsDragActive(true);
     } else if (e.type === 'dragleave') {
       setIsDragActive(false);
     }
-  }, []);
+  }, [status]);
+
+  const isActiveUpload = status === 'uploading' || status === 'processing' || status === 'embedding';
 
   const processFile = async (file: File) => {
-    setStatusMessage({ text: '', type: null });
-    const success = await onUpload(file);
-    if (success) {
-      setStatusMessage({ text: `"${file.name}" indexed successfully`, type: 'success' });
-      setTimeout(() => setStatusMessage({ text: '', type: null }), 4000);
-    } else {
-      setStatusMessage({ text: `Failed to process "${file.name}"`, type: 'error' });
-    }
+    await onUpload(file);
   };
 
   const handleDrop = useCallback(
@@ -41,11 +39,11 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, isUploading, p
       e.preventDefault();
       e.stopPropagation();
       setIsDragActive(false);
-      if (isUploading) return;
+      if (isActiveUpload) return;
       const file = e.dataTransfer.files?.[0];
       if (file) await processFile(file);
     },
-    [isUploading, onUpload]
+    [isActiveUpload, onUpload]
   );
 
   const handleFileInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,12 +56,12 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, isUploading, p
   return (
     <div className="w-full space-y-3">
       {/* Upload progress bar (top of card) */}
-      {isUploading && (
+      {isActiveUpload && (
         <div className="w-full h-1 rounded-full bg-surface-800 overflow-hidden">
           <motion.div
             className="h-full bg-accent-gradient rounded-full"
             initial={{ width: '0%' }}
-            animate={{ width: `${progress}%` }}
+            animate={{ width: `${status === 'uploading' ? progress : 100}%` }}
             transition={{ duration: 0.3 }}
           />
         </div>
@@ -77,7 +75,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, isUploading, p
         className={`relative rounded-xl border-2 border-dashed flex flex-col items-center justify-center p-8 text-center transition-all duration-200
           ${isDragActive
             ? 'border-accent-500 bg-accent-500/5 shadow-glow-sm'
-            : isUploading
+            : isActiveUpload
             ? 'border-surface-700 bg-surface-900/30 cursor-not-allowed'
             : 'border-surface-800 hover:border-surface-600 bg-surface-900/20 hover:bg-surface-900/40'
           }`}
@@ -87,11 +85,11 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, isUploading, p
           id="file-upload-input"
           accept=".pdf,.txt,.md"
           onChange={handleFileInput}
-          disabled={isUploading}
+          disabled={isActiveUpload}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
         />
 
-        {isUploading ? (
+        {isActiveUpload ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -99,14 +97,22 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, isUploading, p
           >
             <div className="relative">
               <Loader2 className="h-8 w-8 text-accent-400 animate-spin" />
-              <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold text-accent-300">
-                {progress}%
-              </span>
+              {status === 'uploading' && (
+                <span className="absolute inset-0 flex items-center justify-center text-2xs font-bold text-accent-300">
+                  {progress}%
+                </span>
+              )}
             </div>
             <div>
-              <p className="text-sm font-semibold text-surface-200">Processing document...</p>
+              <p className="text-sm font-semibold text-surface-200">
+                {status === 'uploading' && 'Uploading document...'}
+                {status === 'processing' && 'Processing document...'}
+                {status === 'embedding' && 'Creating embeddings...'}
+              </p>
               <p className="text-xs text-surface-500 mt-1">
-                Chunking, embedding, and indexing
+                {status === 'uploading' && `Uploading to server (${progress}%)`}
+                {status === 'processing' && 'Extracting text and parsing structure'}
+                {status === 'embedding' && 'Generating search embeddings'}
               </p>
             </div>
           </motion.div>
@@ -136,29 +142,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ onUpload, isUploading, p
           </div>
         )}
       </div>
-
-      {/* Status toast */}
-      <AnimatePresence>
-        {statusMessage.type && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className={`flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm border ${
-              statusMessage.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                : 'bg-red-500/10 border-red-500/20 text-red-400'
-            }`}
-          >
-            {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-            ) : (
-              <AlertCircle className="h-4 w-4 shrink-0" />
-            )}
-            <span className="text-xs font-medium">{statusMessage.text}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
+

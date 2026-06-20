@@ -1,9 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Database, Send } from 'lucide-react';
 import { UploadZone } from '../Documents/UploadZone';
 import { FileList } from '../Documents/FileList';
+import { IngestionStatusCard } from '../Documents/IngestionStatusCard';
 import type { DocumentMetadata } from '../../services/documentService';
+import type { UploadStatus } from '../../hooks/useDocuments';
 import { DocMindLogo } from '../Branding/DocMindLogo';
 
 interface SuggestedQuestionsProps {
@@ -19,6 +21,12 @@ interface SuggestedQuestionsProps {
   // Chat input
   onSubmitQuestion: (question: string) => void;
   isLoadingQuestion: boolean;
+  // Status hooks
+  uploadStatus: UploadStatus;
+  activeFileName: string | null;
+  chunksCreated: number | null;
+  uploadError: string | null;
+  resetUploadState: () => void;
 }
 
 const containerVariants = {
@@ -43,6 +51,11 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
   deleteDocument,
   onSubmitQuestion,
   isLoadingQuestion,
+  uploadStatus,
+  activeFileName,
+  chunksCreated,
+  uploadError,
+  resetUploadState,
 }) => {
   const [chatInput, setChatInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -72,6 +85,8 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
       handleChatSubmit(e);
     }
   };
+
+  const isActiveIngestion = uploadStatus === 'uploading' || uploadStatus === 'processing' || uploadStatus === 'embedding';
 
   return (
     <motion.div
@@ -119,14 +134,47 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
           </div>
 
           <div className="w-full pt-2">
-            <UploadZone
-              onUpload={uploadFile}
-              isUploading={isUploading}
-              progress={uploadProgress}
-            />
+            {isActiveIngestion ? (
+              <div className="py-6 flex flex-col items-center justify-center text-center space-y-2">
+                <span className="text-xs font-semibold text-accent-400 animate-pulse uppercase tracking-wider">
+                  Ingestion in progress
+                </span>
+                <p className="text-2xs text-surface-500">
+                  Please wait while your document is being ingested.
+                </p>
+              </div>
+            ) : (
+              <UploadZone
+                onUpload={uploadFile}
+                isUploading={isUploading}
+                progress={uploadProgress}
+                status={uploadStatus}
+              />
+            )}
           </div>
         </div>
       </motion.div>
+
+      {/* 2.5 Ingestion Progress Card */}
+      <AnimatePresence>
+        {uploadStatus !== 'idle' && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -10 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -10 }}
+            className="w-full max-w-[800px] overflow-hidden"
+          >
+            <IngestionStatusCard
+              status={uploadStatus}
+              fileName={activeFileName}
+              progress={uploadProgress}
+              chunksCreated={chunksCreated}
+              error={uploadError}
+              onDismiss={resetUploadState}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 3. Recent Documents List Area */}
       <motion.div variants={itemVariants} className="w-full max-w-[800px] space-y-3">
@@ -146,6 +194,9 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
           documents={documents}
           isLoading={isDocsLoading}
           onDelete={deleteDocument}
+          activeFileName={activeFileName}
+          activeStatus={uploadStatus}
+          activeError={uploadError}
         />
       </motion.div>
 
@@ -186,3 +237,4 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
     </motion.div>
   );
 };
+
