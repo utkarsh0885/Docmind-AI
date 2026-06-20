@@ -1,7 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.models.schemas import ChatRequest, ChatResponse
+from app.models.schemas import ChatRequest, ChatResponse, ErrorResponse
 from app.services.llm_service import get_llm_service, LLMService
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,10 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
                     }
                 }
             }
-        }
+        },
+        400: {"model": ErrorResponse, "description": "Invalid query payload or empty query string"},
+        500: {"model": ErrorResponse, "description": "Vector database or configuration error"},
+        502: {"model": ErrorResponse, "description": "Gemini LLM inference or service failure"}
     }
 )
 async def query_knowledge_base(
@@ -72,6 +75,14 @@ async def query_knowledge_base(
     """
     logger.info(f"Received query: '{request.message}' with history length {len(request.history)}")
     
+    # Verify and reject empty or whitespace-only queries
+    if not request.message.strip():
+        logger.warning("Empty or whitespace-only query rejected.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Query message cannot be empty or whitespace-only."
+        )
+    
     try:
         response_text, sources, citations = await llm.generate_response(
             query=request.message,
@@ -84,6 +95,9 @@ async def query_knowledge_base(
             sources=sources,
             citations=citations
         )
+    except HTTPException as he:
+        # Re-raise HTTPExceptions from service layers directly
+        raise he
     except Exception as e:
         logger.error(f"Error executing knowledge query: {e}")
         raise HTTPException(

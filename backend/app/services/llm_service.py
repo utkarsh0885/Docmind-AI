@@ -1,4 +1,5 @@
 import logging
+from fastapi import HTTPException, status
 from typing import List, Dict, Any, Tuple
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_core.documents import Document
@@ -149,11 +150,10 @@ class LLMService:
             # Re-attempt initialization in case API keys were added dynamically
             self.llm = self._initialize_llm()
             if self.llm is None:
-                return (
-                    f"LLM Provider '{settings.LLM_PROVIDER}' is not configured. "
-                    "Please configure your API key (GOOGLE_API_KEY or OPENAI_API_KEY) in the .env file.",
-                    [],
-                    []
+                logger.error(f"LLM initialization failed for provider '{settings.LLM_PROVIDER}'. Keys are missing or invalid.")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"LLM Provider '{settings.LLM_PROVIDER}' is not configured. Please configure API key in the environment."
                 )
 
         # 3. Construct prompt messages using only the relevant document chunks
@@ -206,7 +206,10 @@ class LLMService:
             
         except Exception as e:
             logger.error(f"Error during LLM inference: {e}")
-            return f"An error occurred while generating a response: {str(e)}", [], []
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"LLM inference failed: {str(e)}"
+            )
 
 llm_service = LLMService()
 

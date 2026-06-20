@@ -121,50 +121,28 @@ class TestSuccessfulQuery:
 
 
 # ---------------------------------------------------------------------------
-# 2. Empty query string
+# 2. Empty query string (now returns HTTP 400 Bad Request)
 # ---------------------------------------------------------------------------
 class TestEmptyQuery:
     def test_empty_string_query(self, client):
-        """An empty string query should still return HTTP 200 (the pipeline
-        will simply find no relevant chunks)."""
-        from app.services.llm_service import llm_service
-
-        original_db = llm_service.db_client
-        try:
-            llm_service.db_client = MagicMock()
-            llm_service.db_client.similarity_search_with_scores = MagicMock(
-                return_value=[]
-            )
-
-            resp = client.post(
-                "/api/chat/query", json={"message": "", "history": []}
-            )
-        finally:
-            llm_service.db_client = original_db
-
-        assert resp.status_code == 200
+        """An empty string query should return HTTP 400 with a structured error."""
+        resp = client.post(
+            "/api/chat/query", json={"message": "", "history": []}
+        )
+        assert resp.status_code == 400
         data = resp.json()
-        assert data["sources"] == []
-        assert data["citations"] == []
+        assert data["error"] is True
+        assert "cannot be empty" in data["message"]
 
     def test_whitespace_only_query(self, client):
-        """A whitespace-only query should behave identically to an empty query."""
-        from app.services.llm_service import llm_service
-
-        original_db = llm_service.db_client
-        try:
-            llm_service.db_client = MagicMock()
-            llm_service.db_client.similarity_search_with_scores = MagicMock(
-                return_value=[]
-            )
-
-            resp = client.post(
-                "/api/chat/query", json={"message": "   ", "history": []}
-            )
-        finally:
-            llm_service.db_client = original_db
-
-        assert resp.status_code == 200
+        """A whitespace-only query should return HTTP 400."""
+        resp = client.post(
+            "/api/chat/query", json={"message": "   ", "history": []}
+        )
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] is True
+        assert "cannot be empty" in data["message"]
 
 
 # ---------------------------------------------------------------------------
@@ -258,28 +236,29 @@ class TestNoRetrievalResults:
 
 
 # ---------------------------------------------------------------------------
-# 5. Invalid request body
+# 5. Invalid request body (returns HTTP 400 Bad Request with unified error response)
 # ---------------------------------------------------------------------------
 class TestInvalidRequestBody:
     def test_missing_message_field(self, client):
-        """Omitting the required 'message' field should return 422."""
+        """Omitting the required 'message' field should return 400."""
         resp = client.post("/api/chat/query", json={"history": []})
-        assert resp.status_code == 422
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] is True
+        assert "Validation error" in data["message"]
 
     def test_wrong_type_for_message(self, client):
-        """Sending a non-string message should return 422."""
+        """Sending a non-string/list message should return 400."""
         resp = client.post(
-            "/api/chat/query", json={"message": 12345, "history": []}
-        )
-        # Pydantic v2 coerces int to str, so this may succeed —
-        # but sending a list should fail.
-        resp2 = client.post(
             "/api/chat/query", json={"message": ["hello"], "history": []}
         )
-        assert resp2.status_code == 422
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] is True
+        assert "Validation error" in data["message"]
 
     def test_malformed_history(self, client):
-        """Invalid history entries should return 422."""
+        """Invalid history entries should return 400."""
         resp = client.post(
             "/api/chat/query",
             json={
@@ -287,14 +266,87 @@ class TestInvalidRequestBody:
                 "history": [{"bad_key": "value"}],
             },
         )
-        assert resp.status_code == 422
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] is True
+        assert "Validation error" in data["message"]
 
     def test_empty_json_body(self, client):
-        """An empty JSON object should return 422."""
+        """An empty JSON object should return 400."""
         resp = client.post("/api/chat/query", json={})
-        assert resp.status_code == 422
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] is True
+        assert "Validation error" in data["message"]
 
     def test_no_body_at_all(self, client):
-        """Sending no body should return 422."""
+        """Sending no body should return 400."""
         resp = client.post("/api/chat/query")
-        assert resp.status_code == 422
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] is True
+        assert "Validation error" in data["message"]
+
+
+# ---------------------------------------------------------------------------
+# 6. Service & Configuration Failures (Gemini errors and missing keys)
+# ---------------------------------------------------------------------------
+class TestServiceFailures:
+    def test_missing_api_keys_returns_500(self, client):
+        """When LLM configuration fails due to missing keys, return HTTP 500."""
+        from app.services.llm_service import llm_service
+        from langchain_core.documents import Document
+
+        mock_docs = [(Document(page_content="relevant info", metadata={"filename": "doc.txt"}), 0.2)]
+        original_db = llm_service.db_client
+        original_llm = llm_service.llm
+        try:
+            llm_service.db_client = MagicMock()
+            llm_service.db_client.similarity_search_with_scores = MagicMock(return_value=mock_docs)
+            # Simulate key missing initialization failure
+            llm_service.llm = None
+            llm_service._initialize_llm = MagicMock(return_value=None)
+
+            resp = client.post(
+                "/api/chat/query",
+                json={"message": "Query with missing config", "history": []}
+            )
+        finally:
+            llm_service.db_client = original_db
+            llm_service.llm = original_llm
+            delattr(llm_service, "_initialize_llm")
+
+        assert resp.status_code == 500
+        data = resp.json()
+        assert data["error"] is True
+        assert "not configured" in data["message"]
+
+    def test_gemini_api_failure_returns_502(self, client):
+        """When the LLM provider fails during inference, return HTTP 502."""
+        from app.services.llm_service import llm_service
+        from langchain_core.documents import Document
+
+        mock_docs = [(Document(page_content="relevant info", metadata={"filename": "doc.txt"}), 0.2)]
+        mock_llm = MagicMock()
+        mock_llm.ainvoke = AsyncMock(side_effect=Exception("API connection refused by Gemini service"))
+
+        original_db = llm_service.db_client
+        original_llm = llm_service.llm
+        try:
+            llm_service.db_client = MagicMock()
+            llm_service.db_client.similarity_search_with_scores = MagicMock(return_value=mock_docs)
+            llm_service.llm = mock_llm
+
+            resp = client.post(
+                "/api/chat/query",
+                json={"message": "Inference failing query", "history": []}
+            )
+        finally:
+            llm_service.db_client = original_db
+            llm_service.llm = original_llm
+
+        assert resp.status_code == 502
+        data = resp.json()
+        assert data["error"] is True
+        assert "inference failed" in data["message"]
+

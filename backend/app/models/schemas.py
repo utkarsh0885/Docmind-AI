@@ -39,3 +39,7 @@ class IngestionResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str = Field(..., description="General message response")
+
+class ErrorResponse(BaseModel):
+    error: bool = Field(default=True, description="Indicates whether the request resulted in an error")
+    message: str = Field(..., description="Human readable message describing the error")

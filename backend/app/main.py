@@ -1,11 +1,10 @@
 import logging
 import time
-# pyrefly: ignore [missing-import]
 from fastapi import FastAPI, Request
-# pyrefly: ignore [missing-import]
 from fastapi.middleware.cors import CORSMiddleware
-# pyrefly: ignore [missing-import]
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
 from app.api import chat, documents
@@ -44,12 +43,45 @@ async def add_process_time_header(request: Request, call_next):
     return response
 
 # Global Exception Handlers
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    logger.error(f"HTTP error {exc.status_code} at {request.url.path}: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": True,
+            "message": exc.detail
+        }
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # Combine validation error details into a clean human-readable string
+    err_msgs = []
+    for err in exc.errors():
+        loc = " -> ".join(str(l) for l in err["loc"] if l != "body")
+        msg = err["msg"]
+        err_msgs.append(f"'{loc}': {msg}" if loc else msg)
+    
+    combined_msg = "Validation error: " + "; ".join(err_msgs)
+    logger.error(f"Validation error at {request.url.path}: {combined_msg}")
+    return JSONResponse(
+        status_code=400,  # Map validation errors to 400 Bad Request
+        content={
+            "error": True,
+            "message": combined_msg
+        }
+    )
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global unhandled error at {request.url.path}: {exc}", exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={"detail": "An internal server error occurred. Please contact system support."}
+        content={
+            "error": True,
+            "message": "An internal server error occurred. Please contact system support."
+        }
     )
 
 # Register routers
