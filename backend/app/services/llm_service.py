@@ -111,8 +111,11 @@ class LLMService:
         # Log structured information: query received
         logger.info(f"Query received: '{query}'")
         
-        # 1. Retrieve relevant contexts with distance scores
-        retrieved_docs_with_scores = self.db_client.similarity_search_with_scores(query, k=4)
+        # 1. Retrieve relevant contexts with distance scores (HCL compliance: k=5)
+        retrieved_docs_with_scores = self.db_client.similarity_search_with_scores(query, k=5)
+        
+        # Log structured information: retrieved chunks count (raw count from database)
+        logger.info(f"Retrieved chunks count: {len(retrieved_docs_with_scores)}")
         
         # Filter chunks by relevance threshold and compute scores
         # ChromaDB default space is 'l2' (squared L2 distance).
@@ -127,8 +130,12 @@ class LLMService:
             if score >= settings.RELEVANCE_THRESHOLD:
                 relevant_docs_with_scores.append((doc, distance, score))
         
-        # Log structured information: chunks retrieved count (passing the relevance threshold)
-        logger.info(f"Chunks retrieved count: {len(relevant_docs_with_scores)}")
+        # Sort relevant chunks by relevance score descending to ensure top-5 relevance ordering
+        relevant_docs_with_scores.sort(key=lambda x: x[2], reverse=True)
+        
+        # Log structured information: chunk scores
+        chunk_scores = [round(x[2], 4) for x in relevant_docs_with_scores]
+        logger.info(f"Chunk scores: {chunk_scores}")
         
         # If no chunks are relevant, bypass Gemini LLM and return standardized response
         if not relevant_docs_with_scores:

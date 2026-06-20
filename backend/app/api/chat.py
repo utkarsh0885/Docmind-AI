@@ -13,9 +13,10 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
     responses={
         200: {
             "description": (
-                "Successful query response. If relevant chunks are found, returns the assistant's "
-                "synthesized response with sources and citations. If no relevant chunks match the "
-                "relevance threshold, bypasses Gemini and returns a standardized fallback answer."
+                "Successful query response. Retrieves the top 5 semantically relevant chunks. "
+                "If relevant chunks are found, returns the assistant's synthesized response with "
+                "sources and citations. If no relevant chunks match the relevance threshold, "
+                "bypasses Gemini and returns a standardized fallback answer."
             ),
             "content": {
                 "application/json": {
@@ -61,8 +62,9 @@ async def query_knowledge_base(
     """
     Query the knowledge assistant.
     
-    Performs vector search retrieval, filters chunks by relevance threshold, builds conversational
-    prompt context using only relevant chunks, and returns LLM response with citations.
+    Performs vector search retrieval (retrieving the top 5 semantically relevant chunks),
+    filters chunks by relevance threshold, builds conversational prompt context using only
+    relevant chunks, and returns LLM response with citations.
     
     If no chunks are found or none pass the relevance threshold:
     - Bypasses LLM (Gemini) call to optimize latency and api token consumption.
