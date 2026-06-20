@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { chatService } from '../services/chatService';
 import type { ChatMessage, SourceCitation, SourceScore } from '../services/chatService';
 
@@ -10,9 +10,32 @@ export interface ChatUILevelMessage extends ChatMessage {
 }
 
 export const useChat = () => {
-  const [messages, setMessages] = useState<ChatUILevelMessage[]>([]);
+  const [messages, setMessages] = useState<ChatUILevelMessage[]>(() => {
+    try {
+      const saved = sessionStorage.getItem('docmind_chat_history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.map((m: any) => ({
+          ...m,
+          timestamp: new Date(m.timestamp),
+        }));
+      }
+    } catch (e) {
+      console.warn('Failed to parse chat history from sessionStorage', e);
+    }
+    return [];
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sync chat messages to sessionStorage on updates
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('docmind_chat_history', JSON.stringify(messages));
+    } catch (e) {
+      console.warn('Failed to save chat history to sessionStorage', e);
+    }
+  }, [messages]);
 
   const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
@@ -70,6 +93,11 @@ export const useChat = () => {
   const clearChat = useCallback(() => {
     setMessages([]);
     setError(null);
+    try {
+      sessionStorage.removeItem('docmind_chat_history');
+    } catch (e) {
+      console.warn('Failed to remove chat history from sessionStorage', e);
+    }
   }, []);
 
   return {
@@ -80,3 +108,4 @@ export const useChat = () => {
     clearChat,
   };
 };
+

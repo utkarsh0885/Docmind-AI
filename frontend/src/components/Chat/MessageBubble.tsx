@@ -114,23 +114,23 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
       <div className={`flex flex-col gap-1.5 max-w-[85%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
         {/* Bubble */}
         <div
-          className={`relative px-5 py-4 rounded-2xl leading-relaxed w-full transition-all duration-200 ${
+          className={`relative px-4 py-3 rounded-2xl leading-relaxed w-full transition-all duration-200 ${
             isUser
               ? 'bg-accent-600 text-white rounded-br-md shadow-glow-sm text-[14px]'
-              : 'bg-surface-900/40 border border-surface-800/80 text-surface-200 rounded-bl-md shadow-card space-y-4'
+              : 'bg-surface-900/40 border border-surface-800/80 text-surface-200 rounded-bl-md shadow-card space-y-3'
           }`}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            <p className="whitespace-pre-wrap break-words text-[14px]">{message.content}</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* Message text with Markdown parser */}
               <Markdown content={message.content} />
 
               {/* Copy button — assistant only */}
               <button
                 onClick={handleCopy}
-                className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1.5 rounded-md bg-surface-800 border border-surface-700 hover:border-surface-600 shadow-card cursor-pointer"
+                className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 rounded bg-surface-800 border border-surface-700 hover:border-surface-600 shadow-card cursor-pointer"
                 title="Copy response"
               >
                 {copied ? (
@@ -142,27 +142,27 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
 
               {/* Sources Section */}
               {message.sources && message.sources.length > 0 && (
-                <div className="pt-3 border-t border-surface-800/60 space-y-2">
-                  <div className="flex items-center gap-1.5 text-2xs font-semibold text-surface-400 uppercase tracking-wider">
-                    <BookOpen className="h-3.5 w-3.5 text-cyan-400" />
+                <div className="pt-2.5 border-t border-surface-800/60 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-surface-400 uppercase tracking-wider">
+                    <BookOpen className="h-3 w-3 text-cyan-400" />
                     <span>Sources</span>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {message.sources.map((src, idx) => {
                       const fileInfo = getFileIconInfo(src.file_path);
                       const IconComponent = fileInfo.icon;
                       return (
                         <div
                           key={idx}
-                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-950/60 border border-surface-850 text-xs text-surface-300 font-medium animate-fade-in-fast"
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-surface-950/60 border border-surface-850 text-[11px] text-surface-300 font-medium animate-fade-in-fast"
                         >
-                          <div className={`p-1 rounded shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
-                            <IconComponent className="h-3.5 w-3.5" />
+                          <div className={`p-0.5 rounded shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
+                            <IconComponent className="h-3 w-3" />
                           </div>
-                          <span className="truncate max-w-[150px]" title={src.file_path}>
+                          <span className="truncate max-w-[130px]" title={src.file_path}>
                             {src.file_path}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${getRelevanceBadgeStyles(src.score)}`}>
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-semibold ${getRelevanceBadgeStyles(src.score)}`}>
                             {formatScore(src.score)}
                           </span>
                         </div>
@@ -174,9 +174,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
 
               {/* Collapsible Citations Section */}
               {deduplicatedCitations.length > 0 && (
-                <div className="pt-3 border-t border-surface-800/60 space-y-2">
-                  <div className="flex items-center gap-1.5 text-2xs font-semibold text-surface-400 uppercase tracking-wider">
-                    <Quote className="h-3.5 w-3.5 text-violet-400" />
+                <div className="pt-2.5 border-t border-surface-800/60 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-surface-400 uppercase tracking-wider">
+                    <Quote className="h-3 w-3 text-violet-400" />
                     <span>Citations</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -198,26 +198,26 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                         >
                           <button
                             onClick={() => toggleCitation(idx)}
-                            className="w-full flex items-start justify-between p-3 text-left hover:bg-surface-800/20 transition-colors cursor-pointer"
+                            className="w-full flex items-start justify-between p-2.5 text-left hover:bg-surface-800/20 transition-colors cursor-pointer"
                           >
-                            <div className="flex gap-2.5 min-w-0 pr-2">
-                              <div className={`p-1.5 rounded-lg border mt-0.5 shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
-                                <IconComponent className="h-4 w-4" />
+                            <div className="flex gap-2 min-w-0 pr-2">
+                              <div className={`p-1 rounded-md border mt-0.5 shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
+                                <IconComponent className="h-3.5 w-3.5" />
                               </div>
                               <div className="min-w-0">
-                                <span className="text-2xs font-bold text-accent-400 block uppercase tracking-wider">
+                                <span className="text-[10px] font-bold text-accent-400 block uppercase tracking-wider">
                                   Citation {idx + 1}
                                 </span>
-                                <span className="text-xs text-surface-200 font-semibold truncate block max-w-[180px]" title={cite.source}>
+                                <span className="text-[11px] text-surface-200 font-semibold truncate block max-w-[160px]" title={cite.source}>
                                   Source: {cite.source}
                                 </span>
-                                <span className="text-[10px] text-surface-500 font-medium">
+                                <span className="text-[9px] text-surface-500 font-medium">
                                   Page: {cite.page ?? 1}
                                 </span>
 
                                 {/* Collapsed snippet preview */}
                                 {!isExpanded && (
-                                  <p className="text-2xs text-surface-450 mt-1.5 italic line-clamp-2 leading-relaxed">
+                                  <p className="text-[10px] text-surface-450 mt-1 italic line-clamp-2 leading-relaxed">
                                     &ldquo;{snippetPreview}&rdquo;
                                   </p>
                                 )}
@@ -225,20 +225,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                             </div>
 
                             {/* Copy Citation Button & Toggle */}
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1 shrink-0 mt-0.5">
                               <button
                                 onClick={(e) => handleCopyCitation(e, cite.snippet, idx)}
-                                className="p-1.5 rounded-lg bg-surface-900 border border-surface-800 hover:border-surface-700 text-surface-400 hover:text-surface-200 transition-all cursor-pointer shadow-sm"
+                                className="p-1 rounded-md bg-surface-900 border border-surface-800 hover:border-surface-700 text-surface-400 hover:text-surface-200 transition-all cursor-pointer shadow-sm"
                                 title="Copy citation snippet"
                               >
                                 {copiedCitationIdx === idx ? (
-                                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                  <Check className="h-3 w-3 text-emerald-400" />
                                 ) : (
-                                  <Copy className="h-3.5 w-3.5" />
+                                  <Copy className="h-3 w-3" />
                                 )}
                               </button>
                               <ChevronDown
-                                className={`h-4 w-4 text-surface-500 transition-transform duration-200 shrink-0 ${
+                                className={`h-3.5 w-3.5 text-surface-500 transition-transform duration-200 shrink-0 ${
                                   isExpanded ? 'rotate-180' : ''
                                 }`}
                               />
@@ -254,7 +254,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                                 transition={{ duration: 0.2 }}
                                 className="overflow-hidden border-t border-surface-850"
                               >
-                                <div className="p-3 bg-surface-950/60 text-xs text-surface-300 leading-relaxed italic border-l-2 border-accent-500/50">
+                                <div className="p-2.5 bg-surface-950/60 text-[11px] text-surface-300 leading-relaxed italic border-l-2 border-accent-500/50">
                                   &ldquo;{cite.snippet}&rdquo;
                                 </div>
                               </motion.div>
@@ -269,12 +269,12 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
 
               {/* Retrieved Documents Section */}
               {message.sources && message.sources.length > 0 && (
-                <div className="pt-3 border-t border-surface-800/60 space-y-2">
-                  <div className="flex items-center gap-1.5 text-2xs font-semibold text-surface-400 uppercase tracking-wider">
-                    <Database className="h-3.5 w-3.5 text-emerald-400" />
+                <div className="pt-2.5 border-t border-surface-800/60 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-[10px] font-semibold text-surface-400 uppercase tracking-wider">
+                    <Database className="h-3 w-3 text-emerald-400" />
                     <span>Top Retrieved Documents</span>
                   </div>
-                  <div className="grid grid-cols-1 gap-2.5">
+                  <div className="grid grid-cols-1 gap-2">
                     {message.sources.map((src, idx) => {
                       const fileInfo = getFileIconInfo(src.file_path);
                       const IconComponent = fileInfo.icon;
@@ -283,11 +283,11 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                       return (
                         <div
                           key={idx}
-                          className="p-3.5 rounded-xl bg-surface-950/50 border border-surface-850/80 space-y-2.5 hover:bg-surface-950/80 transition-colors"
+                          className="p-2.5 rounded-lg bg-surface-950/50 border border-surface-850/80 space-y-2 hover:bg-surface-950/80 transition-colors animate-fade-in-fast"
                         >
-                          <div className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-gradient-to-r shrink-0 shadow-sm ${
+                          <div className="flex items-center justify-between text-[11px]">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold text-white bg-gradient-to-r shrink-0 shadow-sm ${
                                 idx === 0 
                                   ? 'from-violet-600 to-indigo-600' 
                                   : idx === 1 
@@ -296,20 +296,20 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                               }`}>
                                 #{idx + 1}
                               </span>
-                              <div className={`p-1 rounded shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
-                                <IconComponent className="h-3.5 w-3.5" />
+                              <div className={`p-0.5 rounded shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
+                                <IconComponent className="h-3 w-3" />
                               </div>
                               <span className="font-semibold text-surface-200 truncate" title={src.file_path}>
                                 {src.file_path}
                               </span>
                             </div>
-                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${getRelevanceBadgeStyles(src.score)}`}>
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold shrink-0 ${getRelevanceBadgeStyles(src.score)}`}>
                               {formatScore(src.score)}
                             </span>
                           </div>
                           
                           {/* Score Visual Progress Bar */}
-                          <div className="w-full h-1.5 rounded-full bg-surface-900 overflow-hidden">
+                          <div className="w-full h-1 rounded-full bg-surface-900 overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all duration-500 ${
                                 scorePct >= 80 
@@ -334,7 +334,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
         </div>
 
         {/* Timestamp */}
-        <span className="text-2xs text-surface-600 px-1 font-medium">
+        <span className="text-[10px] text-surface-650 px-1 font-medium">
           {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>

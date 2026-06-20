@@ -93,6 +93,23 @@ export const ChatWindow: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+      {/* Active Session Header Bar */}
+      {hasMessages && (
+        <div className="flex items-center justify-between px-6 sm:px-8 h-14 border-b border-surface-800/60 shrink-0 bg-surface-950/40 backdrop-blur-md z-10 animate-fade-in-fast">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <h2 className="text-xs font-semibold text-surface-450 uppercase tracking-wider">Active Chat Session</h2>
+          </div>
+          <button
+            onClick={clearChat}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-500/25 bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold transition-all cursor-pointer shadow-glow-sm"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Clear Chat
+          </button>
+        </div>
+      )}
+
       {/* Messages / Empty State */}
       <div
         ref={scrollContainerRef}
