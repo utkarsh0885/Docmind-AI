@@ -13,11 +13,19 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [expandedCitations, setExpandedCitations] = useState<Record<number, boolean>>({});
+  const [copiedCitationIdx, setCopiedCitationIdx] = useState<number | null>(null);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyCitation = async (e: React.MouseEvent, snippet: string, idx: number) => {
+    e.stopPropagation(); // Prevent card expansion toggle when clicking copy
+    await navigator.clipboard.writeText(snippet);
+    setCopiedCitationIdx(idx);
+    setTimeout(() => setCopiedCitationIdx(null), 2000);
   };
 
   const toggleCitation = (idx: number) => {
@@ -34,7 +42,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
     } else if (pct >= 60) {
       return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
     } else if (pct >= 40) {
-      return 'bg-amber-500/15 text-amber-400 border border-amber-550/20';
+      return 'bg-amber-500/15 text-amber-400 border border-amber-500/20';
     } else {
       return 'bg-red-500/10 text-red-400 border border-red-500/20';
     }
@@ -44,6 +52,47 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
     const pct = score <= 1 ? score * 100 : score;
     return `${pct.toFixed(1)}%`;
   };
+
+  const getFileIconInfo = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'pdf':
+        return {
+          icon: FileText,
+          color: 'text-red-400',
+          bg: 'bg-red-500/10 border-red-500/20',
+        };
+      case 'md':
+        return {
+          icon: FileText,
+          color: 'text-blue-400',
+          bg: 'bg-blue-500/10 border-blue-500/20',
+        };
+      case 'txt':
+        return {
+          icon: FileText,
+          color: 'text-emerald-400',
+          bg: 'bg-emerald-500/10 border-emerald-500/20',
+        };
+      default:
+        return {
+          icon: FileText,
+          color: 'text-surface-400',
+          bg: 'bg-surface-850 border border-surface-800',
+        };
+    }
+  };
+
+  // Deduplicate citations from the same source/page combination
+  const deduplicatedCitations = message.citations
+    ? message.citations.filter(
+        (cite, idx, self) =>
+          idx ===
+          self.findIndex(
+            (c) => c.source === cite.source && (c.page ?? 1) === (cite.page ?? 1)
+          )
+      )
+    : [];
 
   return (
     <motion.div
@@ -99,34 +148,49 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                     <span>Sources</span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {message.sources.map((src, idx) => (
-                      <div
-                        key={idx}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-950/60 border border-surface-850 text-xs text-surface-300 font-medium"
-                      >
-                        <FileText className="h-3.5 w-3.5 text-surface-500 shrink-0" />
-                        <span className="truncate max-w-[150px]" title={src.file_path}>
-                          {src.file_path}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${getRelevanceBadgeStyles(src.score)}`}>
-                          {formatScore(src.score)}
-                        </span>
-                      </div>
-                    ))}
+                    {message.sources.map((src, idx) => {
+                      const fileInfo = getFileIconInfo(src.file_path);
+                      const IconComponent = fileInfo.icon;
+                      return (
+                        <div
+                          key={idx}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-950/60 border border-surface-850 text-xs text-surface-300 font-medium animate-fade-in-fast"
+                        >
+                          <div className={`p-1 rounded shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
+                            <IconComponent className="h-3.5 w-3.5" />
+                          </div>
+                          <span className="truncate max-w-[150px]" title={src.file_path}>
+                            {src.file_path}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${getRelevanceBadgeStyles(src.score)}`}>
+                            {formatScore(src.score)}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
               {/* Collapsible Citations Section */}
-              {message.citations && message.citations.length > 0 && (
+              {deduplicatedCitations.length > 0 && (
                 <div className="pt-3 border-t border-surface-800/60 space-y-2">
                   <div className="flex items-center gap-1.5 text-2xs font-semibold text-surface-400 uppercase tracking-wider">
                     <Quote className="h-3.5 w-3.5 text-violet-400" />
                     <span>Citations</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {message.citations.map((cite, idx) => {
+                    {deduplicatedCitations.map((cite, idx) => {
                       const isExpanded = !!expandedCitations[idx];
+                      const fileInfo = getFileIconInfo(cite.source);
+                      const IconComponent = fileInfo.icon;
+
+                      // snippet preview limited to ~200 characters
+                      const snippetPreview =
+                        cite.snippet.length > 200
+                          ? cite.snippet.slice(0, 200) + '...'
+                          : cite.snippet;
+
                       return (
                         <div
                           key={idx}
@@ -134,24 +198,51 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                         >
                           <button
                             onClick={() => toggleCitation(idx)}
-                            className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-800/20 transition-colors cursor-pointer"
+                            className="w-full flex items-start justify-between p-3 text-left hover:bg-surface-800/20 transition-colors cursor-pointer"
                           >
-                            <div className="min-w-0 pr-2">
-                              <span className="text-2xs font-bold text-accent-400 block uppercase tracking-wider">
-                                Citation {idx + 1}
-                              </span>
-                              <span className="text-xs text-surface-200 font-semibold truncate block max-w-[200px]" title={cite.source}>
-                                Source: {cite.source}
-                              </span>
-                              <span className="text-[10px] text-surface-500 font-medium">
-                                Page: {cite.page ?? 1}
-                              </span>
+                            <div className="flex gap-2.5 min-w-0 pr-2">
+                              <div className={`p-1.5 rounded-lg border mt-0.5 shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
+                                <IconComponent className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-2xs font-bold text-accent-400 block uppercase tracking-wider">
+                                  Citation {idx + 1}
+                                </span>
+                                <span className="text-xs text-surface-200 font-semibold truncate block max-w-[180px]" title={cite.source}>
+                                  Source: {cite.source}
+                                </span>
+                                <span className="text-[10px] text-surface-500 font-medium">
+                                  Page: {cite.page ?? 1}
+                                </span>
+
+                                {/* Collapsed snippet preview */}
+                                {!isExpanded && (
+                                  <p className="text-2xs text-surface-450 mt-1.5 italic line-clamp-2 leading-relaxed">
+                                    &ldquo;{snippetPreview}&rdquo;
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            <ChevronDown
-                              className={`h-4 w-4 text-surface-500 transition-transform duration-200 shrink-0 ${
-                                isExpanded ? 'rotate-180' : ''
-                              }`}
-                            />
+
+                            {/* Copy Citation Button & Toggle */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                onClick={(e) => handleCopyCitation(e, cite.snippet, idx)}
+                                className="p-1.5 rounded-lg bg-surface-900 border border-surface-800 hover:border-surface-700 text-surface-400 hover:text-surface-200 transition-all cursor-pointer shadow-sm"
+                                title="Copy citation snippet"
+                              >
+                                {copiedCitationIdx === idx ? (
+                                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                              <ChevronDown
+                                className={`h-4 w-4 text-surface-500 transition-transform duration-200 shrink-0 ${
+                                  isExpanded ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </div>
                           </button>
 
                           <AnimatePresence initial={false}>
@@ -163,7 +254,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                                 transition={{ duration: 0.2 }}
                                 className="overflow-hidden border-t border-surface-850"
                               >
-                                <div className="p-3 bg-surface-950/60 text-xs text-surface-400 leading-relaxed italic border-l-2 border-accent-500/50">
+                                <div className="p-3 bg-surface-950/60 text-xs text-surface-300 leading-relaxed italic border-l-2 border-accent-500/50">
                                   &ldquo;{cite.snippet}&rdquo;
                                 </div>
                               </motion.div>
@@ -183,27 +274,59 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
                     <Database className="h-3.5 w-3.5 text-emerald-400" />
                     <span>Top Retrieved Documents</span>
                   </div>
-                  <ol className="space-y-2">
-                    {message.sources.map((src, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-center justify-between text-xs text-surface-300 pl-1"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-surface-550 font-bold">{idx + 1}.</span>
-                          <span className="font-semibold text-surface-200 truncate max-w-[250px]" title={src.file_path}>
-                            {src.file_path}
-                          </span>
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {message.sources.map((src, idx) => {
+                      const fileInfo = getFileIconInfo(src.file_path);
+                      const IconComponent = fileInfo.icon;
+                      const scorePct = src.score <= 1 ? src.score * 100 : src.score;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-3.5 rounded-xl bg-surface-950/50 border border-surface-850/80 space-y-2.5 hover:bg-surface-950/80 transition-colors"
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold text-white bg-gradient-to-r shrink-0 shadow-sm ${
+                                idx === 0 
+                                  ? 'from-violet-600 to-indigo-600' 
+                                  : idx === 1 
+                                  ? 'from-cyan-600 to-blue-600' 
+                                  : 'from-zinc-700 to-zinc-800'
+                              }`}>
+                                #{idx + 1}
+                              </span>
+                              <div className={`p-1 rounded shrink-0 ${fileInfo.bg} ${fileInfo.color}`}>
+                                <IconComponent className="h-3.5 w-3.5" />
+                              </div>
+                              <span className="font-semibold text-surface-200 truncate" title={src.file_path}>
+                                {src.file_path}
+                              </span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${getRelevanceBadgeStyles(src.score)}`}>
+                              {formatScore(src.score)}
+                            </span>
+                          </div>
+                          
+                          {/* Score Visual Progress Bar */}
+                          <div className="w-full h-1.5 rounded-full bg-surface-900 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                scorePct >= 80 
+                                  ? 'bg-emerald-500' 
+                                  : scorePct >= 60 
+                                  ? 'bg-blue-500' 
+                                  : scorePct >= 40 
+                                  ? 'bg-amber-500' 
+                                  : 'bg-red-500'
+                              }`}
+                              style={{ width: `${scorePct}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-2xs text-surface-550">Score:</span>
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${getRelevanceBadgeStyles(src.score)}`}>
-                            {formatScore(src.score)}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ol>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -225,4 +348,5 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
     </motion.div>
   );
 };
+
 
