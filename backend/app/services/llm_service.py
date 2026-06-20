@@ -108,11 +108,32 @@ class LLMService:
         Retrieves context documents with distance scores, builds messages, calls the LLM,
         and formats sources with normalized relevance scores and citations.
         """
+        # Log structured information: query received
+        logger.info(f"Query received: '{query}'")
+        
         # 1. Retrieve relevant contexts with distance scores
         retrieved_docs_with_scores = self.db_client.similarity_search_with_scores(query, k=4)
         
-        if not retrieved_docs_with_scores:
-            return "I could not find any reference documents in the vector database. Please upload documents first.", [], []
+        # Filter chunks by relevance threshold and compute scores
+        # ChromaDB default space is 'l2' (squared L2 distance).
+        # For unit-normalized embeddings, squared L2 distance d is related to cosine similarity by:
+        # d = ||u - v||^2 = ||u||^2 + ||v||^2 - 2 * (u . v) = 1 + 1 - 2 * cosine_similarity = 2 * (1 - cosine_similarity).
+        # Therefore, cosine_similarity = 1.0 - (d / 2.0).
+        # To normalize this cosine similarity metric into a [0, 1] range:
+        # relevance_score = max(0.0, min(1.0, 1.0 - (d / 2.0))).
+        relevant_docs_with_scores = []
+        for doc, distance in retrieved_docs_with_scores:
+            score = max(0.0, min(1.0, 1.0 - (distance / 2.0)))
+            if score >= settings.RELEVANCE_THRESHOLD:
+                relevant_docs_with_scores.append((doc, distance, score))
+        
+        # Log structured information: chunks retrieved count (passing the relevance threshold)
+        logger.info(f"Chunks retrieved count: {len(relevant_docs_with_scores)}")
+        
+        # If no chunks are relevant, bypass Gemini LLM and return standardized response
+        if not relevant_docs_with_scores:
+            logger.info("No results detected")
+            return "No relevant information found in the knowledge base.", [], []
             
         # 2. Check if LLM is initialized
         if self.llm is None:
@@ -126,8 +147,8 @@ class LLMService:
                     []
                 )
 
-        # 3. Construct prompt messages
-        retrieved_docs = [doc for doc, _ in retrieved_docs_with_scores]
+        # 3. Construct prompt messages using only the relevant document chunks
+        retrieved_docs = [doc for doc, _, _ in relevant_docs_with_scores]
         messages = self._build_messages(query, retrieved_docs, history)
         
         try:
@@ -136,17 +157,9 @@ class LLMService:
             response_text = str(llm_result.content)
             
             # 4. Calculate relevance scores and format unique sources sorted by score descending
-            # ChromaDB default space is 'l2' (squared L2 distance).
-            # For unit-normalized embeddings, squared L2 distance d is related to cosine similarity by:
-            # d = ||u - v||^2 = ||u||^2 + ||v||^2 - 2 * (u . v) = 1 + 1 - 2 * cosine_similarity = 2 * (1 - cosine_similarity).
-            # Therefore, cosine_similarity = 1.0 - (d / 2.0).
-            # To normalize this cosine similarity metric into a [0, 1] range:
-            # relevance_score = max(0.0, min(1.0, 1.0 - (d / 2.0))).
             file_scores = {}
-            for doc, distance in retrieved_docs_with_scores:
+            for doc, _, score in relevant_docs_with_scores:
                 file_path = doc.metadata.get("filename", "Unknown Source")
-                score = max(0.0, min(1.0, 1.0 - (distance / 2.0)))
-                
                 if file_path not in file_scores or score > file_scores[file_path]:
                     file_scores[file_path] = score
             
@@ -160,7 +173,7 @@ class LLMService:
             # 5. Process and format citations
             citations = []
             seen_snippets = set()
-            for doc, _ in retrieved_docs_with_scores:
+            for doc, _, _ in relevant_docs_with_scores:
                 snippet = doc.page_content.strip()
                 if snippet in seen_snippets:
                     continue

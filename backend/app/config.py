@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Vector Database Configurations
     CHROMADB_PERSIST_DIR: str = os.path.join(BASE_DIR, "chroma_db")
     CHROMADB_COLLECTION_NAME: str = "enterprise_knowledge"
+    RELEVANCE_THRESHOLD: float = 0.35
     
     # Storage Configurations
     UPLOAD_DIR: str = os.path.join(BASE_DIR, "uploads")
