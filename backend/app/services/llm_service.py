@@ -140,6 +140,8 @@ class LLMService:
         # If no chunks are relevant, bypass Gemini LLM and return standardized response
         if not relevant_docs_with_scores:
             logger.info("No results detected")
+            logger.info("Unique documents matched: []")
+            logger.info("Ranked document scores: []")
             return "No relevant information found in the knowledge base.", [], []
             
         # 2. Check if LLM is initialized
@@ -176,6 +178,12 @@ class LLMService:
             ]
             # Sort sources descending by score
             sources.sort(key=lambda x: x.score, reverse=True)
+            
+            # Log structured information: unique documents matched and ranked document scores
+            unique_docs = list(file_scores.keys())
+            ranked_scores = [sc.score for sc in sources]
+            logger.info(f"Unique documents matched: {unique_docs}")
+            logger.info(f"Ranked document scores: {ranked_scores}")
             
             # 5. Process and format citations
             citations = []
