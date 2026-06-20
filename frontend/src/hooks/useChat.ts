@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
 import { chatService } from '../services/chatService';
-import type { ChatMessage, SourceCitation } from '../services/chatService';
+import type { ChatMessage, SourceCitation, SourceScore } from '../services/chatService';
 
 export interface ChatUILevelMessage extends ChatMessage {
   id: string;
   timestamp: Date;
-  sources?: SourceCitation[];
+  sources?: SourceScore[];
+  citations?: SourceCitation[];
 }
 
 export const useChat = () => {
@@ -40,7 +41,8 @@ export const useChat = () => {
         id: assistantMessageId,
         role: 'assistant',
         content: response.answer || response.response,
-        sources: response.citations || [],
+        sources: response.sources || [],
+        citations: response.citations || [],
         timestamp: new Date(),
       };
       

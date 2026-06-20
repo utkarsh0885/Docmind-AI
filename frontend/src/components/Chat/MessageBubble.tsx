@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Check, ChevronDown, FileText } from 'lucide-react';
+import { Copy, Check, ChevronDown, FileText, BookOpen, Quote, Database } from 'lucide-react';
 import type { ChatUILevelMessage } from '../../hooks/useChat';
+import { Markdown } from '../Common/Markdown';
 
 interface MessageBubbleProps {
   message: ChatUILevelMessage;
@@ -11,12 +12,37 @@ interface MessageBubbleProps {
 export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) => {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
-  const [expandedCitation, setExpandedCitation] = useState<number | null>(null);
+  const [expandedCitations, setExpandedCitations] = useState<Record<number, boolean>>({});
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const toggleCitation = (idx: number) => {
+    setExpandedCitations((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  };
+
+  const getRelevanceBadgeStyles = (score: number) => {
+    const pct = score <= 1 ? score * 100 : score;
+    if (pct >= 80) {
+      return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+    } else if (pct >= 60) {
+      return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
+    } else if (pct >= 40) {
+      return 'bg-amber-500/15 text-amber-400 border border-amber-550/20';
+    } else {
+      return 'bg-red-500/10 text-red-400 border border-red-500/20';
+    }
+  };
+
+  const formatScore = (score: number) => {
+    const pct = score <= 1 ? score * 100 : score;
+    return `${pct.toFixed(1)}%`;
   };
 
   return (
@@ -36,107 +62,153 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
       )}
 
       {/* Message content */}
-      <div className={`flex flex-col gap-1.5 max-w-[75%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
+      <div className={`flex flex-col gap-1.5 max-w-[85%] min-w-0 ${isUser ? 'items-end' : 'items-start'}`}>
         {/* Bubble */}
         <div
-          className={`relative px-4 py-3 rounded-2xl text-[14px] leading-relaxed ${
+          className={`relative px-5 py-4 rounded-2xl leading-relaxed w-full transition-all duration-200 ${
             isUser
-              ? 'bg-accent-600 text-white rounded-br-md shadow-glow-sm'
-              : 'bg-surface-850 border border-surface-800/60 text-surface-200 rounded-bl-md'
+              ? 'bg-accent-600 text-white rounded-br-md shadow-glow-sm text-[14px]'
+              : 'bg-surface-900/40 border border-surface-800/80 text-surface-200 rounded-bl-md shadow-card space-y-4'
           }`}
         >
-          {/* Message text */}
-          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          {isUser ? (
+            <p className="whitespace-pre-wrap break-words">{message.content}</p>
+          ) : (
+            <div className="space-y-4">
+              {/* Message text with Markdown parser */}
+              <Markdown content={message.content} />
 
-          {/* Copy button — assistant only */}
-          {!isUser && (
-            <button
-              onClick={handleCopy}
-              className="absolute -bottom-3 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1.5 rounded-md bg-surface-800 border border-surface-700 hover:border-surface-600 shadow-card cursor-pointer"
-              title="Copy response"
-            >
-              {copied ? (
-                <Check className="h-3 w-3 text-emerald-400" />
-              ) : (
-                <Copy className="h-3 w-3 text-surface-400" />
+              {/* Copy button — assistant only */}
+              <button
+                onClick={handleCopy}
+                className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1.5 rounded-md bg-surface-800 border border-surface-700 hover:border-surface-600 shadow-card cursor-pointer"
+                title="Copy response"
+              >
+                {copied ? (
+                  <Check className="h-3 w-3 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3 w-3 text-surface-400" />
+                )}
+              </button>
+
+              {/* Sources Section */}
+              {message.sources && message.sources.length > 0 && (
+                <div className="pt-3 border-t border-surface-800/60 space-y-2">
+                  <div className="flex items-center gap-1.5 text-2xs font-semibold text-surface-400 uppercase tracking-wider">
+                    <BookOpen className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>Sources</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {message.sources.map((src, idx) => (
+                      <div
+                        key={idx}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-950/60 border border-surface-850 text-xs text-surface-300 font-medium"
+                      >
+                        <FileText className="h-3.5 w-3.5 text-surface-500 shrink-0" />
+                        <span className="truncate max-w-[150px]" title={src.file_path}>
+                          {src.file_path}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold ${getRelevanceBadgeStyles(src.score)}`}>
+                          {formatScore(src.score)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
-            </button>
+
+              {/* Collapsible Citations Section */}
+              {message.citations && message.citations.length > 0 && (
+                <div className="pt-3 border-t border-surface-800/60 space-y-2">
+                  <div className="flex items-center gap-1.5 text-2xs font-semibold text-surface-400 uppercase tracking-wider">
+                    <Quote className="h-3.5 w-3.5 text-violet-400" />
+                    <span>Citations</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {message.citations.map((cite, idx) => {
+                      const isExpanded = !!expandedCitations[idx];
+                      return (
+                        <div
+                          key={idx}
+                          className="flex flex-col rounded-xl bg-surface-950/40 border border-surface-850 overflow-hidden"
+                        >
+                          <button
+                            onClick={() => toggleCitation(idx)}
+                            className="w-full flex items-center justify-between p-3 text-left hover:bg-surface-800/20 transition-colors cursor-pointer"
+                          >
+                            <div className="min-w-0 pr-2">
+                              <span className="text-2xs font-bold text-accent-400 block uppercase tracking-wider">
+                                Citation {idx + 1}
+                              </span>
+                              <span className="text-xs text-surface-200 font-semibold truncate block max-w-[200px]" title={cite.source}>
+                                Source: {cite.source}
+                              </span>
+                              <span className="text-[10px] text-surface-500 font-medium">
+                                Page: {cite.page ?? 1}
+                              </span>
+                            </div>
+                            <ChevronDown
+                              className={`h-4 w-4 text-surface-500 transition-transform duration-200 shrink-0 ${
+                                isExpanded ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+
+                          <AnimatePresence initial={false}>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden border-t border-surface-850"
+                              >
+                                <div className="p-3 bg-surface-950/60 text-xs text-surface-400 leading-relaxed italic border-l-2 border-accent-500/50">
+                                  &ldquo;{cite.snippet}&rdquo;
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Retrieved Documents Section */}
+              {message.sources && message.sources.length > 0 && (
+                <div className="pt-3 border-t border-surface-800/60 space-y-2">
+                  <div className="flex items-center gap-1.5 text-2xs font-semibold text-surface-400 uppercase tracking-wider">
+                    <Database className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Top Retrieved Documents</span>
+                  </div>
+                  <ol className="space-y-2">
+                    {message.sources.map((src, idx) => (
+                      <li
+                        key={idx}
+                        className="flex items-center justify-between text-xs text-surface-300 pl-1"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-surface-550 font-bold">{idx + 1}.</span>
+                          <span className="font-semibold text-surface-200 truncate max-w-[250px]" title={src.file_path}>
+                            {src.file_path}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-2xs text-surface-550">Score:</span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${getRelevanceBadgeStyles(src.score)}`}>
+                            {formatScore(src.score)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
           )}
         </div>
-
-        {/* Citation cards — Perplexity style */}
-        {!isUser && message.sources && message.sources.length > 0 && (
-          <div className="w-full mt-2 space-y-1.5">
-            <span className="text-2xs font-semibold text-surface-500 uppercase tracking-wider px-1">
-              Sources
-            </span>
-
-            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-              {message.sources.map((source, idx) => {
-                const isExpanded = expandedCitation === idx;
-                return (
-                  <motion.button
-                    key={idx}
-                    onClick={() => setExpandedCitation(isExpanded ? null : idx)}
-                    className={`group/cite shrink-0 flex items-start gap-2.5 px-3 py-2.5 rounded-xl border transition-all duration-200 text-left cursor-pointer
-                      ${isExpanded
-                        ? 'bg-accent-500/10 border-accent-500/25 shadow-glow-sm'
-                        : 'bg-surface-900/60 border-surface-800/60 hover:border-surface-700 hover:bg-surface-800/40'
-                      }
-                    `}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <div className={`flex items-center justify-center h-6 w-6 rounded-md shrink-0 text-xs font-bold ${
-                      isExpanded ? 'bg-accent-500/20 text-accent-400' : 'bg-surface-800 text-surface-400'
-                    }`}>
-                      {idx + 1}
-                    </div>
-                    <div className="min-w-0">
-                      <p className={`text-xs font-medium truncate max-w-[160px] ${
-                        isExpanded ? 'text-accent-300' : 'text-surface-300'
-                      }`}>
-                        {source.source}
-                      </p>
-                      {source.page && (
-                        <p className="text-2xs text-surface-500 mt-0.5">
-                          Page {source.page}
-                        </p>
-                      )}
-                    </div>
-                    <ChevronDown className={`h-3 w-3 text-surface-500 shrink-0 mt-1 transition-transform duration-200 ${
-                      isExpanded ? 'rotate-180' : ''
-                    }`} />
-                  </motion.button>
-                );
-              })}
-            </div>
-
-            {/* Expanded citation snippet */}
-            <AnimatePresence>
-              {expandedCitation !== null && message.sources[expandedCitation] && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
-                >
-                  <div className="px-4 py-3 rounded-xl bg-surface-900/80 border border-surface-800/60 text-xs text-surface-400 leading-relaxed mt-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <FileText className="h-3.5 w-3.5 text-accent-400" />
-                      <span className="font-semibold text-surface-300">
-                        {message.sources[expandedCitation].source}
-                      </span>
-                    </div>
-                    <p className="italic text-surface-400 line-clamp-3">
-                      &ldquo;{message.sources[expandedCitation].snippet}&rdquo;
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
 
         {/* Timestamp */}
         <span className="text-2xs text-surface-600 px-1 font-medium">
@@ -153,3 +225,4 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, index }) 
     </motion.div>
   );
 };
+
