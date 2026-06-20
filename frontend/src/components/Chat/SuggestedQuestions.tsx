@@ -87,6 +87,14 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
   };
 
   const isActiveIngestion = uploadStatus === 'uploading' || uploadStatus === 'processing' || uploadStatus === 'embedding';
+  const hasDocuments = documents.length > 0;
+
+  const samplePrompts = [
+    'Summarize this document',
+    'What skills are mentioned?',
+    'List all projects',
+    'Give me interview questions from this document',
+  ];
 
   return (
     <motion.div
@@ -97,10 +105,18 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
     >
       {/* 1. Hero / Badge Section */}
       <motion.div variants={itemVariants} className="text-center flex flex-col items-center">
-        {/* Badge */}
-        <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-500/10 border border-accent-500/25 text-accent-300 text-2xs font-semibold uppercase tracking-wider shadow-glow-sm">
-          <Sparkles className="h-3 w-3 text-accent-400" />
-          Enterprise Knowledge Assistant
+        {/* Badge and Document Count Badge */}
+        <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-500/10 border border-accent-500/25 text-accent-300 text-2xs font-semibold uppercase tracking-wider shadow-glow-sm">
+            <Sparkles className="h-3 w-3 text-accent-400" />
+            Enterprise Knowledge Assistant
+          </div>
+          {hasDocuments && (
+            <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-2xs font-semibold uppercase tracking-wider shadow-glow-sm animate-fade-in-fast">
+              <Database className="h-3 w-3 text-emerald-400" />
+              {documents.length} {documents.length === 1 ? 'Document' : 'Documents'} Indexed
+            </div>
+          )}
         </div>
 
         {/* Logo and Titles */}
@@ -115,45 +131,146 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
         </p>
       </motion.div>
 
-      {/* 2. Visually Dominant Upload Section Card */}
-      <motion.div
-        variants={itemVariants}
-        className="w-full max-w-[800px] relative p-6 sm:p-8 rounded-xl bg-surface-900/40 border border-surface-800/80 backdrop-blur-xl shadow-glow-md hover:shadow-glow-lg hover:border-surface-700/80 transition-all duration-300 group"
-      >
-        {/* Hover gradient border overlay */}
-        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-accent-500/5 via-cyan-500/5 to-accent-500/5 opacity-50 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      {/* Conditional Rendering Flow based on Document Existence */}
+      {hasDocuments ? (
+        <>
+          {/* 2. Primary Chat Card Section (Top Action when documents exist) */}
+          <motion.div variants={itemVariants} className="w-full max-w-[800px] space-y-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse-ring" />
+              <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
+                Chat With Your Knowledge Base
+              </h3>
+            </div>
 
-        <div className="relative z-10 flex flex-col items-center text-center space-y-6">
-          <div className="space-y-1">
-            <h2 className="text-lg font-bold text-surface-100">
-              Upload Your Knowledge Base
-            </h2>
-            <p className="text-xs text-surface-400 max-w-lg mx-auto">
-              Upload PDFs, TXT files, or Markdown documents and instantly start asking AI-powered questions.
-            </p>
-          </div>
+            <form onSubmit={handleChatSubmit} className="relative">
+              <div className="flex items-end gap-2 p-2 rounded-2xl bg-surface-900/60 border border-surface-800 focus-within:border-accent-500/40 focus-within:shadow-glow-sm transition-all duration-200 backdrop-blur-xl">
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isLoadingQuestion}
+                  placeholder="Ask a question about your uploaded knowledge base..."
+                  className="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none disabled:opacity-50 max-h-32 scrollbar-thin"
+                />
+                <div className="pb-1 pr-1">
+                  <motion.button
+                    type="submit"
+                    disabled={!chatInput.trim() || isLoadingQuestion}
+                    className="p-2.5 rounded-xl bg-accent-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-accent-500 transition-all shadow-glow-sm cursor-pointer"
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Send className="h-4 w-4" />
+                  </motion.button>
+                </div>
+              </div>
+            </form>
 
-          <div className="w-full pt-2">
-            {isActiveIngestion ? (
-              <div className="py-6 flex flex-col items-center justify-center text-center space-y-2">
-                <span className="text-xs font-semibold text-accent-400 animate-pulse uppercase tracking-wider">
-                  Ingestion in progress
-                </span>
-                <p className="text-2xs text-surface-500">
-                  Please wait while your document is being ingested.
+            {/* Clickable 4 sample prompts */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
+              {samplePrompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => onSubmitQuestion(prompt)}
+                  className="p-3.5 text-left rounded-xl bg-surface-900/40 border border-surface-800/60 text-xs font-medium text-surface-300 hover:text-accent-300 hover:border-accent-500/40 hover:bg-surface-900/80 hover:shadow-glow-sm transition-all cursor-pointer active:scale-[0.98] duration-150"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* 3. Upload Section Card (Shifted below chat) */}
+          <motion.div
+            variants={itemVariants}
+            className="w-full max-w-[800px] relative p-6 sm:p-8 rounded-xl bg-surface-900/40 border border-surface-800/80 backdrop-blur-xl shadow-glow-md hover:shadow-glow-lg hover:border-surface-700/80 transition-all duration-300 group"
+          >
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-accent-500/5 via-cyan-500/5 to-accent-500/5 opacity-50 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            <div className="relative z-10 flex flex-col items-center text-center space-y-6">
+              <div className="space-y-1">
+                <h2 className="text-lg font-bold text-surface-100">
+                  Upload More Knowledge
+                </h2>
+                <p className="text-xs text-surface-400 max-w-lg mx-auto">
+                  Add more PDFs, TXT, or MD documents to expand your RAG assistant's intelligence context.
                 </p>
               </div>
-            ) : (
-              <UploadZone
-                onUpload={uploadFile}
-                isUploading={isUploading}
-                progress={uploadProgress}
-                status={uploadStatus}
-              />
-            )}
-          </div>
-        </div>
-      </motion.div>
+              <div className="w-full pt-2">
+                {isActiveIngestion ? (
+                  <div className="py-6 flex flex-col items-center justify-center text-center space-y-2">
+                    <span className="text-xs font-semibold text-accent-400 animate-pulse uppercase tracking-wider">
+                      Ingestion in progress
+                    </span>
+                    <p className="text-2xs text-surface-500">
+                      Please wait while your document is being ingested.
+                    </p>
+                  </div>
+                ) : (
+                  <UploadZone
+                    onUpload={uploadFile}
+                    isUploading={isUploading}
+                    progress={uploadProgress}
+                    status={uploadStatus}
+                  />
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </>
+      ) : (
+        <>
+          {/* C. Primary Upload Card (Top action when NO documents exist) */}
+          <motion.div
+            variants={itemVariants}
+            className="w-full max-w-[800px] relative p-6 sm:p-8 rounded-xl bg-surface-900/40 border border-surface-800/80 backdrop-blur-xl shadow-glow-md hover:shadow-glow-lg hover:border-surface-700/80 transition-all duration-300 group"
+          >
+            <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-accent-500/5 via-cyan-500/5 to-accent-500/5 opacity-50 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            <div className="relative z-10 flex flex-col items-center text-center space-y-6">
+              <div className="space-y-1">
+                <h2 className="text-lg font-bold text-surface-100">
+                  Upload Your Knowledge Base
+                </h2>
+                <p className="text-xs text-surface-400 max-w-lg mx-auto">
+                  Upload PDFs, TXT files, or Markdown documents and instantly start asking AI-powered questions.
+                </p>
+              </div>
+              <div className="w-full pt-2">
+                {isActiveIngestion ? (
+                  <div className="py-6 flex flex-col items-center justify-center text-center space-y-2">
+                    <span className="text-xs font-semibold text-accent-400 animate-pulse uppercase tracking-wider">
+                      Ingestion in progress
+                    </span>
+                    <p className="text-2xs text-surface-500">
+                      Please wait while your document is being ingested.
+                    </p>
+                  </div>
+                ) : (
+                  <UploadZone
+                    onUpload={uploadFile}
+                    isUploading={isUploading}
+                    progress={uploadProgress}
+                    status={uploadStatus}
+                  />
+                )}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* D. Empty State Message for Chatting */}
+          <motion.div
+            variants={itemVariants}
+            className="w-full max-w-[800px] p-5 rounded-2xl bg-surface-900/20 border border-surface-850/60 text-center text-sm text-surface-400 flex items-center justify-center gap-3 backdrop-blur-sm"
+          >
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 shrink-0 animate-pulse-ring" />
+            <span className="font-medium text-surface-300">
+              Upload a document to start chatting with your knowledge base
+            </span>
+          </motion.div>
+        </>
+      )}
 
       {/* 2.5 Ingestion Progress Card */}
       <AnimatePresence>
@@ -199,42 +316,8 @@ export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
           activeError={uploadError}
         />
       </motion.div>
-
-      {/* 4. Inline Chat Input Section */}
-      <motion.div variants={itemVariants} className="w-full max-w-[800px] space-y-3 pt-4 border-t border-surface-850/60">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse-ring" />
-          <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
-            Start A Conversation
-          </h3>
-        </div>
-
-        <form onSubmit={handleChatSubmit} className="relative">
-          <div className="flex items-end gap-2 p-2 rounded-2xl bg-surface-900/60 border border-surface-800 focus-within:border-accent-500/40 focus-within:shadow-glow-sm transition-all duration-200 backdrop-blur-xl">
-            <textarea
-              ref={textareaRef}
-              rows={1}
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoadingQuestion}
-              placeholder="Ask a question about your uploaded knowledge base..."
-              className="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none disabled:opacity-50 max-h-32 scrollbar-thin"
-            />
-            <div className="pb-1 pr-1">
-              <motion.button
-                type="submit"
-                disabled={!chatInput.trim() || isLoadingQuestion}
-                className="p-2.5 rounded-xl bg-accent-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-accent-500 transition-all shadow-glow-sm cursor-pointer"
-                whileTap={{ scale: 0.95 }}
-              >
-                <Send className="h-4 w-4" />
-              </motion.button>
-            </div>
-          </div>
-        </form>
-      </motion.div>
     </motion.div>
   );
 };
+
 
