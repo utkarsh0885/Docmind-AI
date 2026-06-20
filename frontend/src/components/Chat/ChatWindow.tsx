@@ -98,7 +98,7 @@ export const ChatWindow: React.FC = () => {
         <div className="flex items-center justify-between px-6 sm:px-8 h-14 border-b border-surface-800/60 shrink-0 bg-surface-950/40 backdrop-blur-md z-10 animate-fade-in-fast">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <h2 className="text-xs font-semibold text-surface-450 uppercase tracking-wider">Active Chat Session</h2>
+            <h2 className="text-xs font-semibold text-surface-450 uppercase tracking-wider">ACTIVE CHAT SESSION</h2>
           </div>
           <button
             onClick={clearChat}
