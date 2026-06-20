@@ -1,56 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import {
-  FileSearch,
-  BookOpen,
-  Lightbulb,
-  Shield,
-  Database,
-  MessageSquare,
-  Search,
-  Sparkles
-} from 'lucide-react';
-import { useDocuments } from '../../hooks/useDocuments';
+import { Sparkles, Database, Send } from 'lucide-react';
+import { UploadZone } from '../Documents/UploadZone';
+import { FileList } from '../Documents/FileList';
+import type { DocumentMetadata } from '../../services/documentService';
 import { DocMindLogo } from '../Branding/DocMindLogo';
 
 interface SuggestedQuestionsProps {
   onSelect: (question: string) => void;
+  // Upload hooks
+  uploadFile: (file: File) => Promise<boolean>;
+  isUploading: boolean;
+  uploadProgress: number;
+  // Document list hooks
+  documents: DocumentMetadata[];
+  isDocsLoading: boolean;
+  deleteDocument: (filename: string) => Promise<boolean>;
+  // Chat input
+  onSubmitQuestion: (question: string) => void;
+  isLoadingQuestion: boolean;
 }
-
-const suggestions = [
-  {
-    icon: FileSearch,
-    title: 'Search policies',
-    question: 'What are the main policies in the uploaded documents?',
-    color: 'text-violet-400',
-    bgColor: 'bg-violet-500/10',
-    borderColor: 'border-violet-500/20',
-  },
-  {
-    icon: BookOpen,
-    title: 'Summarize content',
-    question: 'Can you summarize the key points from all uploaded documents?',
-    color: 'text-cyan-400',
-    bgColor: 'bg-cyan-500/10',
-    borderColor: 'border-cyan-500/20',
-  },
-  {
-    icon: Lightbulb,
-    title: 'Extract insights',
-    question: 'What are the most important deadlines or dates mentioned?',
-    color: 'text-amber-400',
-    bgColor: 'bg-amber-500/10',
-    borderColor: 'border-amber-500/20',
-  },
-  {
-    icon: Shield,
-    title: 'Check compliance',
-    question: 'What security or compliance requirements are described?',
-    color: 'text-emerald-400',
-    bgColor: 'bg-emerald-500/10',
-    borderColor: 'border-emerald-500/20',
-  },
-];
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -62,163 +31,158 @@ const containerVariants = {
 
 const itemVariants = {
   hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
 };
 
-export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({ onSelect }) => {
-  const { documents, fetchDocuments } = useDocuments();
-  const [queriesCount, setQueriesCount] = useState(32);
-  const [sourcesCount, setSourcesCount] = useState(96);
+export const SuggestedQuestions: React.FC<SuggestedQuestionsProps> = ({
+  uploadFile,
+  isUploading,
+  uploadProgress,
+  documents,
+  isDocsLoading,
+  deleteDocument,
+  onSubmitQuestion,
+  isLoadingQuestion,
+}) => {
+  const [chatInput, setChatInput] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Auto-resize textarea
   useEffect(() => {
-    fetchDocuments();
-
-    // Load local storage counters
-    try {
-      const storedQueries = localStorage.getItem('docmind_queries_count');
-      const storedSources = localStorage.getItem('docmind_sources_count');
-
-      if (storedQueries) {
-        setQueriesCount(parseInt(storedQueries, 10));
-      } else {
-        localStorage.setItem('docmind_queries_count', '32');
-      }
-
-      if (storedSources) {
-        setSourcesCount(parseInt(storedSources, 10));
-      } else {
-        localStorage.setItem('docmind_sources_count', '96');
-      }
-    } catch (e) {
-      console.warn('LocalStorage reads failed', e);
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
     }
-  }, [fetchDocuments]);
+  }, [chatInput]);
+
+  const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isLoadingQuestion) return;
+    onSubmitQuestion(chatInput.trim());
+    setChatInput('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleChatSubmit(e);
+    }
+  };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-6 py-12">
-      {/* Badge */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.05 }}
-        className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-500/10 border border-accent-500/25 text-accent-300 text-2xs font-semibold uppercase tracking-wider shadow-glow-sm"
-      >
-        <Sparkles className="h-3 w-3 text-accent-400" />
-        Enterprise AI Knowledge Platform
-      </motion.div>
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="flex flex-col items-center w-full max-w-4xl mx-auto px-6 py-10 space-y-10"
+    >
+      {/* 1. Hero / Badge Section */}
+      <motion.div variants={itemVariants} className="text-center flex flex-col items-center">
+        {/* Badge */}
+        <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-500/10 border border-accent-500/25 text-accent-300 text-2xs font-semibold uppercase tracking-wider shadow-glow-sm">
+          <Sparkles className="h-3 w-3 text-accent-400" />
+          Enterprise Knowledge Assistant
+        </div>
 
-      {/* Hero section */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="text-center mb-8"
-      >
+        {/* Logo and Titles */}
         <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-surface-900 border border-surface-800/80 flex items-center justify-center shadow-glow-lg">
           <DocMindLogo size={32} gradientId="docmind-gradient-hero" />
         </div>
-        <h2 className="text-2xl font-bold text-surface-100 tracking-tight">
-          How can I help you today?
-        </h2>
+        <h1 className="text-3xl font-extrabold text-surface-100 tracking-tight sm:text-4xl bg-gradient-to-r from-surface-100 via-surface-200 to-surface-400 bg-clip-text text-transparent">
+          DocMind AI Assistant
+        </h1>
         <p className="text-sm text-surface-500 mt-2 max-w-md mx-auto leading-relaxed">
-          Ask questions about your uploaded documents. I'll search through your knowledge base and provide answers with citations.
+          Unlock intelligence from your documents using semantically indexed knowledge and Google Gemini logic.
         </p>
       </motion.div>
 
-      {/* Metrics Section */}
+      {/* 2. Visually Dominant Upload Section Card */}
       <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-3 gap-4 w-full max-w-xl mb-8"
+        variants={itemVariants}
+        className="w-full max-w-[800px] relative p-6 sm:p-8 rounded-xl bg-surface-900/40 border border-surface-800/80 backdrop-blur-xl shadow-glow-md hover:shadow-glow-lg hover:border-surface-700/80 transition-all duration-300 group"
       >
-        {/* Documents Card */}
-        <motion.div
-          variants={itemVariants}
-          whileHover={{ y: -3, borderColor: 'rgba(139, 92, 246, 0.35)' }}
-          className="flex flex-col p-4 rounded-xl border border-surface-800/80 bg-surface-900/40 backdrop-blur-md relative overflow-hidden group transition-all duration-300 shadow-glow-sm"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          <div className="flex items-center gap-2 mb-1.5 relative z-10">
-            <Database className="h-3.5 w-3.5 text-violet-400" />
-            <span className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider">Indexed</span>
-          </div>
-          <span className="text-xl font-extrabold text-surface-100 relative z-10 tracking-tight">
-            {documents.length}
-          </span>
-          <span className="text-[10px] text-surface-500 mt-0.5 relative z-10">Documents online</span>
-        </motion.div>
+        {/* Hover gradient border overlay */}
+        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-accent-500/5 via-cyan-500/5 to-accent-500/5 opacity-50 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
-        {/* Queries Card */}
-        <motion.div
-          variants={itemVariants}
-          whileHover={{ y: -3, borderColor: 'rgba(34, 211, 238, 0.35)' }}
-          className="flex flex-col p-4 rounded-xl border border-surface-800/80 bg-surface-900/40 backdrop-blur-md relative overflow-hidden group transition-all duration-300 shadow-glow-sm"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          <div className="flex items-center gap-2 mb-1.5 relative z-10">
-            <MessageSquare className="h-3.5 w-3.5 text-cyan-400" />
-            <span className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider">Queries</span>
+        <div className="relative z-10 flex flex-col items-center text-center space-y-6">
+          <div className="space-y-1">
+            <h2 className="text-lg font-bold text-surface-100">
+              Upload Your Knowledge Base
+            </h2>
+            <p className="text-xs text-surface-400 max-w-lg mx-auto">
+              Upload PDFs, TXT files, or Markdown documents and instantly start asking AI-powered questions.
+            </p>
           </div>
-          <span className="text-xl font-extrabold text-surface-100 relative z-10 tracking-tight">
-            {queriesCount}
-          </span>
-          <span className="text-[10px] text-surface-500 mt-0.5 relative z-10">Total processed</span>
-        </motion.div>
 
-        {/* Sources Card */}
-        <motion.div
-          variants={itemVariants}
-          whileHover={{ y: -3, borderColor: 'rgba(245, 158, 11, 0.35)' }}
-          className="flex flex-col p-4 rounded-xl border border-surface-800/80 bg-surface-900/40 backdrop-blur-md relative overflow-hidden group group-hover:border-opacity-100 transition-all duration-300 shadow-glow-sm"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          <div className="flex items-center gap-2 mb-1.5 relative z-10">
-            <Search className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider">Sources</span>
+          <div className="w-full pt-2">
+            <UploadZone
+              onUpload={uploadFile}
+              isUploading={isUploading}
+              progress={uploadProgress}
+            />
           </div>
-          <span className="text-xl font-extrabold text-surface-100 relative z-10 tracking-tight">
-            {sourcesCount}
-          </span>
-          <span className="text-[10px] text-surface-500 mt-0.5 relative z-10">Citations found</span>
-        </motion.div>
+        </div>
       </motion.div>
 
-      {/* Suggestion cards */}
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-xl"
-      >
-        {suggestions.map((item) => {
-          const Icon = item.icon;
-          return (
-            <motion.button
-              key={item.title}
-              variants={itemVariants}
-              onClick={() => onSelect(item.question)}
-              className={`group text-left p-4 rounded-xl border ${item.borderColor} ${item.bgColor} 
-                hover:border-opacity-40 hover:shadow-card-hover
-                transition-all duration-200 cursor-pointer`}
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="flex items-start gap-3">
-                <Icon className={`h-5 w-5 ${item.color} shrink-0 mt-0.5`} />
-                <div>
-                  <p className={`text-sm font-semibold ${item.color} mb-1`}>
-                    {item.title}
-                  </p>
-                  <p className="text-xs text-surface-400 leading-relaxed line-clamp-2 group-hover:text-surface-300 transition-colors">
-                    {item.question}
-                  </p>
-                </div>
-              </div>
-            </motion.button>
-          );
-        })}
+      {/* 3. Recent Documents List Area */}
+      <motion.div variants={itemVariants} className="w-full max-w-[800px] space-y-3">
+        <div className="flex items-center justify-between border-b border-surface-800/60 pb-2">
+          <div className="flex items-center gap-2">
+            <Database className="h-4 w-4 text-violet-400" />
+            <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
+              Recent Documents ({documents.length})
+            </h3>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-900 border border-surface-800 text-surface-500 font-semibold uppercase tracking-wider">
+            ChromaDB
+          </span>
+        </div>
+
+        <FileList
+          documents={documents}
+          isLoading={isDocsLoading}
+          onDelete={deleteDocument}
+        />
       </motion.div>
-    </div>
+
+      {/* 4. Inline Chat Input Section */}
+      <motion.div variants={itemVariants} className="w-full max-w-[800px] space-y-3 pt-4 border-t border-surface-850/60">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse-ring" />
+          <h3 className="text-xs font-semibold text-surface-400 uppercase tracking-wider">
+            Start A Conversation
+          </h3>
+        </div>
+
+        <form onSubmit={handleChatSubmit} className="relative">
+          <div className="flex items-end gap-2 p-2 rounded-2xl bg-surface-900/60 border border-surface-800 focus-within:border-accent-500/40 focus-within:shadow-glow-sm transition-all duration-200 backdrop-blur-xl">
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isLoadingQuestion}
+              placeholder="Ask a question about your uploaded knowledge base..."
+              className="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none disabled:opacity-50 max-h-32 scrollbar-thin"
+            />
+            <div className="pb-1 pr-1">
+              <motion.button
+                type="submit"
+                disabled={!chatInput.trim() || isLoadingQuestion}
+                className="p-2.5 rounded-xl bg-accent-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-accent-500 transition-all shadow-glow-sm cursor-pointer"
+                whileTap={{ scale: 0.95 }}
+              >
+                <Send className="h-4 w-4" />
+              </motion.button>
+            </div>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
   );
 };

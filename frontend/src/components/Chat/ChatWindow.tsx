@@ -5,6 +5,7 @@ import { MessageBubble } from './MessageBubble';
 import { TypingIndicator } from './TypingIndicator';
 import { SuggestedQuestions } from './SuggestedQuestions';
 import { useChat } from '../../hooks/useChat';
+import { useDocuments } from '../../hooks/useDocuments';
 
 export const ChatWindow: React.FC = () => {
   const { messages, isLoading, error, sendMessage, clearChat } = useChat();
@@ -13,6 +14,21 @@ export const ChatWindow: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Hook for document listing/upload/delete on the homepage
+  const {
+    documents,
+    isLoading: isDocsLoading,
+    isUploading,
+    uploadProgress,
+    fetchDocuments,
+    uploadFile,
+    deleteDocument,
+  } = useDocuments();
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -78,7 +94,17 @@ export const ChatWindow: React.FC = () => {
         className="flex-1 overflow-y-auto scrollbar-thin"
       >
         {!hasMessages ? (
-          <SuggestedQuestions onSelect={handleSuggestionSelect} />
+          <SuggestedQuestions
+            onSelect={handleSuggestionSelect}
+            uploadFile={uploadFile}
+            isUploading={isUploading}
+            uploadProgress={uploadProgress}
+            documents={documents}
+            isDocsLoading={isDocsLoading}
+            deleteDocument={deleteDocument}
+            onSubmitQuestion={sendMessage}
+            isLoadingQuestion={isLoading}
+          />
         ) : (
           <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
             {messages.map((message, idx) => (
@@ -126,58 +152,60 @@ export const ChatWindow: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Input Area */}
-      <div className="shrink-0 border-t border-surface-800/60 bg-surface-950/80 backdrop-blur-xl">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4">
-          <form onSubmit={handleSubmit} className="relative">
-            <div className="flex items-end gap-2 p-2 rounded-2xl bg-surface-900/80 border border-surface-800/80 focus-within:border-accent-500/40 focus-within:shadow-glow-sm transition-all duration-200">
-              <textarea
-                ref={textareaRef}
-                id="chat-input"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isLoading}
-                placeholder={
-                  isLoading
-                    ? 'Waiting for response...'
-                    : 'Ask a question about your knowledge base...'
-                }
-                rows={1}
-                className="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none disabled:opacity-50 max-h-40 scrollbar-thin"
-              />
+      {/* Input Area (only shown when conversation active) */}
+      {hasMessages && (
+        <div className="shrink-0 border-t border-surface-800/60 bg-surface-950/80 backdrop-blur-xl animate-fade-in-fast">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4">
+            <form onSubmit={handleSubmit} className="relative">
+              <div className="flex items-end gap-2 p-2 rounded-2xl bg-surface-900/80 border border-surface-800/80 focus-within:border-accent-500/40 focus-within:shadow-glow-sm transition-all duration-200">
+                <textarea
+                  ref={textareaRef}
+                  id="chat-input"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isLoading}
+                  placeholder={
+                    isLoading
+                      ? 'Waiting for response...'
+                      : 'Ask a question about your knowledge base...'
+                  }
+                  rows={1}
+                  className="flex-1 resize-none bg-transparent px-3 py-2.5 text-sm text-surface-100 placeholder-surface-500 focus:outline-none disabled:opacity-50 max-h-40 scrollbar-thin"
+                />
 
-              <div className="flex items-center gap-1.5 pb-1 pr-1">
-                {/* Clear button */}
-                {hasMessages && (
-                  <button
-                    type="button"
-                    onClick={clearChat}
-                    className="p-2 rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all cursor-pointer"
-                    title="Clear conversation"
+                <div className="flex items-center gap-1.5 pb-1 pr-1">
+                  {/* Clear button */}
+                  {hasMessages && (
+                    <button
+                      type="button"
+                      onClick={clearChat}
+                      className="p-2 rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all cursor-pointer"
+                      title="Clear conversation"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {/* Send button */}
+                  <motion.button
+                    type="submit"
+                    disabled={!input.trim() || isLoading}
+                    className="p-2.5 rounded-xl bg-accent-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-accent-500 transition-all shadow-glow-sm cursor-pointer"
+                    whileTap={{ scale: 0.95 }}
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
-
-                {/* Send button */}
-                <motion.button
-                  type="submit"
-                  disabled={!input.trim() || isLoading}
-                  className="p-2.5 rounded-xl bg-accent-600 text-white disabled:opacity-30 disabled:cursor-not-allowed hover:bg-accent-500 transition-all shadow-glow-sm cursor-pointer"
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <Send className="h-4 w-4" />
-                </motion.button>
+                    <Send className="h-4 w-4" />
+                  </motion.button>
+                </div>
               </div>
-            </div>
-          </form>
+            </form>
 
-          <p className="text-center text-2xs text-surface-600 mt-2.5">
-            Powered by Google Gemini, ChromaDB and Retrieval-Augmented Generation (RAG)
-          </p>
+            <p className="text-center text-2xs text-surface-600 mt-2.5">
+              Powered by Google Gemini, ChromaDB and Retrieval-Augmented Generation (RAG)
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
